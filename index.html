@@ -1,0 +1,1232 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"/>
+  <meta name="theme-color" content="#060d1a"/>
+  <meta name="apple-mobile-web-app-capable" content="yes"/>
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"/>
+  <title>Desert Bloom Pool Service</title>
+  <style>
+    *{margin:0;padding:0;box-sizing:border-box;}
+    body{background:#060d1a;font-family:'DM Sans','Segoe UI',sans-serif;}
+    #root{min-height:100vh;}
+  </style>
+</head>
+<body>
+  <div id="root"></div>
+  <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+  <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+  <script type="text/babel">
+const { useState, useRef, useEffect, useCallback } = React;
+
+// ── CONFIG ────────────────────────────────────────────────────────────────────
+const SHEETS_URL = "https://script.google.com/macros/s/AKfycbwYzp5Tm5im8WEhrHaCZ_tweX09stBsDkSAUPOjV-IWKub3b1HTR6NBro9ka6KGg0yC/exec";
+const FILTER_DEFAULT = 20;
+
+// ── DEFAULT DATA ──────────────────────────────────────────────────────────────
+const DEFAULT_USERS = [
+  { id:"owner", name:"Brett",   role:"owner", password:"owner123", phone:"+14806453994" },
+  { id:"JR",    name:"Jose R.", role:"tech",  password:"tech123",  phone:"+14806453994" },
+  { id:"TM",    name:"Tyler M.",role:"tech",  password:"tech456",  phone:"+14806453994" },
+];
+
+const DEFAULT_POOLS = [
+  { id:1, customer:"Marcus Holt",          phone:"+14806453994", address:"4821 Desert Willow Dr, Scottsdale, AZ 85254", lat:33.636,lng:-111.923, type:"Residential", size:"15,000 gal", status:"Due Today", lastService:"Apr 20", tech:"JR", ph:7.2,chlorine:1.8,alkalinity:90, calcium:280,salt:3100, notes:"Skimmer basket clogged", equipment:["Hayward Pump","Pentair Filter","Jandy Heater"], photos:[],afterPhotos:[],order:1,visits:14,filterVisits:14, monthlyRate:149, serviceDay:"Monday" },
+  { id:2, customer:"Sandra Voss",          phone:"+14806453994", address:"112 Cactus Bloom Ln, Phoenix, AZ 85016",      lat:33.508,lng:-112.074, type:"Residential", size:"22,000 gal", status:"Due Today", lastService:"Apr 20", tech:"TM", ph:7.6,chlorine:0.9,alkalinity:120,calcium:310,salt:3400, notes:"Less chlorine",         equipment:["Pentair Pump","Hayward Filter"],              photos:[],afterPhotos:[],order:2,visits:8, filterVisits:8,  monthlyRate:149, serviceDay:"Monday" },
+  { id:3, customer:"Sunrise Resort",       phone:"+14806453994", address:"9900 N Scottsdale Rd, Scottsdale, AZ 85253",  lat:33.685,lng:-111.925, type:"Commercial",  size:"85,000 gal", status:"Overdue",   lastService:"Apr 15", tech:"JR", ph:6.8,chlorine:0.4,alkalinity:75, calcium:200,salt:null,  notes:"Heater noise",          equipment:["Commercial Pump A","Sand Filter","UV System"], photos:[],afterPhotos:[],order:3,visits:19,filterVisits:19, monthlyRate:425, serviceDay:"Wednesday" },
+  { id:4, customer:"Tony & Rita Espinoza", phone:"+14806453994", address:"5503 Saguaro Ridge Ct, Tempe, AZ 85284",      lat:33.352,lng:-111.940, type:"Residential", size:"18,500 gal", status:"Completed", lastService:"Apr 27", tech:"TM", ph:7.4,chlorine:2.1,alkalinity:100,calcium:250,salt:3200, notes:"All good",              equipment:["Hayward Pump","Cartridge Filter"],            photos:[],afterPhotos:[],order:4,visits:3, filterVisits:3,  monthlyRate:149, serviceDay:"Thursday" },
+  { id:5, customer:"Pinnacle HOA",         phone:"+14806453994", address:"23000 N Pima Rd, Scottsdale, AZ 85255",       lat:33.718,lng:-111.842, type:"Commercial",  size:"120,000 gal",status:"Scheduled", lastService:"Apr 22", tech:"JR", ph:7.3,chlorine:1.5,alkalinity:110,calcium:300,salt:null,  notes:"Acid wash due May",     equipment:["Pentair IntelliFlo","Commercial Filter"],     photos:[],afterPhotos:[],order:5,visits:6, filterVisits:6,  monthlyRate:680, serviceDay:"Friday" },
+  { id:6, customer:"Derek Clune",          phone:"+14806453994", address:"2288 Ironwood Pass Dr, Gilbert, AZ 85298",    lat:33.264,lng:-111.789, type:"Residential", size:"12,000 gal", status:"Scheduled", lastService:"Apr 22", tech:"TM", ph:7.5,chlorine:1.6,alkalinity:95, calcium:260,salt:3050, notes:"",                      equipment:["Hayward Pump","Hayward Filter"],              photos:[],afterPhotos:[],order:6,visits:11,filterVisits:11, monthlyRate:129, serviceDay:"Friday" },
+];
+
+const DEFAULT_INVOICES = [
+  { id:1, customer:"Marcus Holt",          amount:149, serviceDate:"Apr 27", status:"Paid",    paidDate:"Apr 28", notes:"" },
+  { id:2, customer:"Sandra Voss",          amount:149, serviceDate:"Apr 27", status:"Paid",    paidDate:"Apr 28", notes:"" },
+  { id:3, customer:"Sunrise Resort",       amount:425, serviceDate:"Apr 15", status:"Overdue", paidDate:"",       notes:"Follow up needed" },
+  { id:4, customer:"Tony & Rita Espinoza", amount:149, serviceDate:"Apr 27", status:"Paid",    paidDate:"Apr 27", notes:"" },
+  { id:5, customer:"Pinnacle HOA",         amount:680, serviceDate:"Apr 22", status:"Pending", paidDate:"",       notes:"" },
+  { id:6, customer:"Derek Clune",          amount:129, serviceDate:"Apr 22", status:"Pending", paidDate:"",       notes:"" },
+];
+
+const EQ_ISSUES = [
+  { id:1,poolId:3,customer:"Sunrise Resort",      equipment:"Jandy Heater",    issue:"Loud noise on ignition — possible bad igniter.",      severity:"high",  reported:"Apr 15",status:"open"    },
+  { id:2,poolId:1,customer:"Marcus Holt",         equipment:"Hayward Pump",    issue:"Pump basket housing cracking. Needs replacement.",     severity:"medium",reported:"Apr 20",status:"open"    },
+  { id:3,poolId:5,customer:"Pinnacle HOA",        equipment:"Chemical Feeder", issue:"Feeder tube kinked — chlorine flow reduced ~40%.",     severity:"medium",reported:"Apr 22",status:"open"    },
+  { id:4,poolId:2,customer:"Sandra Voss",         equipment:"Pentair Filter",  issue:"Pressure 5 PSI above normal.",                         severity:"low",   reported:"Apr 18",status:"resolved"},
+  { id:5,poolId:4,customer:"Tony & Rita Espinoza",equipment:"Cartridge Filter",issue:"Minor tear in end cap. Monitor for 2 visits.",          severity:"low",   reported:"Apr 10",status:"resolved"},
+];
+
+// ── HELPERS ───────────────────────────────────────────────────────────────────
+const CR = { ph:[7.2,7.6], chlorine:[1.0,3.0], alkalinity:[80,120], calcium:[200,400] };
+const cStat = (v,t)=>{ const r=CR[t]; if(!r)return"ok"; if(v<r[0])return"low"; if(v>r[1])return"high"; return"ok"; };
+const openMaps = (a)=>window.open(`https://maps.google.com/?q=${encodeURIComponent(a)}`,"_blank");
+const fmtTime = (s)=>`${String(Math.floor(s/60)).padStart(2,"0")}:${String(s%60).padStart(2,"0")}`;
+const todayStr = ()=>new Date().toLocaleDateString("en-US",{month:"short",day:"numeric"});
+const fmtMoney = (n)=>`$${Number(n||0).toLocaleString("en-US",{minimumFractionDigits:0})}`;
+const lsGet = (k,d)=>{ try{const v=localStorage.getItem(k);return v?JSON.parse(v):d;}catch{return d;} };
+const lsSet = (k,v)=>{ try{localStorage.setItem(k,JSON.stringify(v));}catch{} };
+
+const SS = {
+  "Due Today":{ bg:"rgba(245,166,35,0.15)",text:"#f5a623",border:"rgba(245,166,35,0.35)" },
+  "Overdue":  { bg:"rgba(239,68,68,0.15)", text:"#ef4444",border:"rgba(239,68,68,0.35)"  },
+  "Completed":{ bg:"rgba(34,197,94,0.15)", text:"#22c55e",border:"rgba(34,197,94,0.35)"  },
+  "Scheduled":{ bg:"rgba(59,130,246,0.15)",text:"#60a5fa",border:"rgba(59,130,246,0.35)" },
+};
+
+// ── GOOGLE SHEETS API ─────────────────────────────────────────────────────────
+const DB = {
+  async post(body) {
+    try {
+      // Try with cors first, fall back to no-cors
+      const res = await fetch(SHEETS_URL, {
+        method:"POST",
+        headers:{"Content-Type":"text/plain"},
+        body:JSON.stringify(body),
+      });
+      try { const j = await res.json(); return j; } catch { return {success:true}; }
+    } catch {
+      // Fallback no-cors
+      try {
+        await fetch(SHEETS_URL, { method:"POST", mode:"no-cors", headers:{"Content-Type":"text/plain"}, body:JSON.stringify(body) });
+      } catch {}
+      return {success:true};
+    }
+  },
+  async getAll() {
+    try {
+      const res = await fetch(`${SHEETS_URL}?t=${Date.now()}`);
+      const json = await res.json();
+      return json.success ? json.data : null;
+    } catch { return null; }
+  },
+  async set(sheet, payload) {
+    return this.post({sheet, action:"set", payload});
+  },
+  async append(sheet, payload) {
+    return this.post({sheet, action:"append", payload});
+  },
+  async setConfig(key, value) {
+    return this.post({sheet:"config", action:"set", payload:{key, value}});
+  },
+  async getConfig(key) {
+    try {
+      const res = await fetch(`${SHEETS_URL}?sheet=config&t=${Date.now()}`);
+      const json = await res.json();
+      if (!json.success) return null;
+      const row = json.data.find(r=>r.Key===key);
+      if (row) return JSON.parse(row.Value);
+    } catch {}
+    return null;
+  },
+};
+
+// ── TWILIO ────────────────────────────────────────────────────────────────────
+async function sendSMS(to, body, cfg) {
+  const res = await fetch(`https://api.twilio.com/2010-04-01/Accounts/${cfg.sid}/Messages.json`, {
+    method:"POST",
+    headers:{"Authorization":"Basic "+btoa(`${cfg.sid}:${cfg.token}`),"Content-Type":"application/x-www-form-urlencoded"},
+    body:new URLSearchParams({To:to,From:cfg.from,Body:body}).toString(),
+  });
+  const data = await res.json();
+  if(!res.ok) throw new Error(data.message||"Twilio error");
+  return data;
+}
+
+// ── UI COMPONENTS ─────────────────────────────────────────────────────────────
+function Badge({status}){
+  const s=SS[status]||{bg:"#1f2937",text:"#6b7280",border:"rgba(255,255,255,0.1)"};
+  return <span style={{background:s.bg,color:s.text,border:`1px solid ${s.border}`,fontSize:10,fontWeight:700,padding:"3px 9px",borderRadius:20,whiteSpace:"nowrap"}}>{status}</span>;
+}
+
+function Gauge({label,val,type,unit}){
+  const s=cStat(val,type),r=CR[type]||[0,10];
+  const pct=Math.min(100,Math.max(0,((val-r[0])/(r[1]-r[0]))*100));
+  const c={ok:"#22c55e",low:"#ef4444",high:"#f5a623"}[s];
+  return(
+    <div style={{background:"#111827",borderRadius:10,padding:"10px 12px"}}>
+      <div style={{display:"flex",justifyContent:"space-between",marginBottom:5}}>
+        <span style={{fontSize:11,color:"#6b7280"}}>{label}</span>
+        <span style={{fontSize:12,fontWeight:700,color:c}}>{val}{unit} {s!=="ok"?`(${s})`:"✓"}</span>
+      </div>
+      <div style={{background:"#1f2937",borderRadius:99,height:5}}>
+        <div style={{width:`${pct}%`,height:"100%",borderRadius:99,background:c}}/>
+      </div>
+    </div>
+  );
+}
+
+function Photos({photos,onAdd,label="Photos"}){
+  const fRef=useRef(),cRef=useRef();
+  const [big,setBig]=useState(null);
+  const handle=e=>{
+    Array.from(e.target.files).forEach(f=>{
+      const r=new FileReader();
+      r.onload=ev=>onAdd({src:ev.target.result,time:new Date().toLocaleTimeString()});
+      r.readAsDataURL(f);
+    });
+    e.target.value="";
+  };
+  return(
+    <>
+      {big!==null&&<div onClick={()=>setBig(null)} style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.92)",zIndex:9999,display:"flex",alignItems:"center",justifyContent:"center"}}><img src={photos[big].src} alt="" style={{maxWidth:"95%",maxHeight:"85vh",borderRadius:12}}/><div style={{position:"absolute",top:16,right:16,color:"#fff",fontSize:28,cursor:"pointer"}}>✕</div></div>}
+      <div style={{fontSize:12,fontWeight:700,color:"#6b7280",marginBottom:8}}>{label} ({photos.length})</div>
+      <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
+        {photos.map((p,i)=>(
+          <div key={i} onClick={()=>setBig(i)} style={{width:70,height:70,borderRadius:10,overflow:"hidden",border:"1px solid rgba(255,255,255,0.1)",cursor:"pointer",position:"relative"}}>
+            <img src={p.src} alt="" style={{width:"100%",height:"100%",objectFit:"cover"}}/>
+            <div style={{position:"absolute",bottom:0,left:0,right:0,background:"rgba(0,0,0,0.6)",fontSize:8,color:"#fff",padding:"2px 4px"}}>{p.time}</div>
+          </div>
+        ))}
+        <button onClick={()=>cRef.current.click()} style={{width:70,height:70,borderRadius:10,border:"2px dashed rgba(34,197,94,0.5)",background:"rgba(34,197,94,0.05)",color:"#22c55e",fontSize:20,cursor:"pointer",display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",gap:2}}><span>📷</span><span style={{fontSize:9}}>Camera</span></button>
+        <button onClick={()=>fRef.current.click()} style={{width:70,height:70,borderRadius:10,border:"2px dashed rgba(59,130,246,0.4)",background:"rgba(59,130,246,0.05)",color:"#60a5fa",fontSize:20,cursor:"pointer",display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",gap:2}}><span>🖼️</span><span style={{fontSize:9}}>Gallery</span></button>
+        <input ref={cRef} type="file" accept="image/*" capture="environment" onChange={handle} style={{display:"none"}}/>
+        <input ref={fRef} type="file" accept="image/*" multiple onChange={handle} style={{display:"none"}}/>
+      </div>
+    </>
+  );
+}
+
+function TopNav({tabs,active,onChange}){
+  return(
+    <div style={{display:"flex",background:"#080f1e",borderBottom:"2px solid rgba(59,130,246,0.12)",overflowX:"auto"}}>
+      {tabs.map(t=>(
+        <button key={t.id} onClick={()=>onChange(t.id)} style={{flex:1,minWidth:55,background:"none",border:"none",borderBottom:active===t.id?"3px solid #3b82f6":"3px solid transparent",cursor:"pointer",padding:"9px 4px 7px",display:"flex",flexDirection:"column",alignItems:"center",gap:2}}>
+          <span style={{fontSize:16}}>{t.icon}</span>
+          <span style={{fontSize:9,fontWeight:700,color:active===t.id?"#3b82f6":"#475569"}}>{t.label}</span>
+        </button>
+      ))}
+    </div>
+  );
+}
+
+function PageHeader({onBack,title,right}){
+  return(
+    <div style={{background:"#0a1628",borderBottom:"1px solid rgba(59,130,246,0.15)",padding:"13px 16px",display:"flex",alignItems:"center",gap:10}}>
+      {onBack&&<button onClick={onBack} style={{background:"rgba(59,130,246,0.1)",border:"1px solid rgba(59,130,246,0.2)",borderRadius:8,padding:"6px 12px",fontSize:12,color:"#60a5fa",cursor:"pointer",whiteSpace:"nowrap"}}>← Back</button>}
+      <div style={{fontWeight:700,fontSize:15,flex:1}}>{title}</div>
+      {right}
+    </div>
+  );
+}
+
+function Card({children,style={}}){
+  return <div style={{background:"#0d1626",borderRadius:14,padding:"14px 16px",border:"1px solid rgba(255,255,255,0.06)",...style}}>{children}</div>;
+}
+
+function Inp({label,value,onChange,placeholder,type="text",error}){
+  return(
+    <div style={{marginBottom:12}}>
+      {label&&<div style={{fontSize:11,color:"#6b7280",marginBottom:4,letterSpacing:1}}>{label}</div>}
+      <input type={type} value={value} onChange={e=>onChange(e.target.value)} placeholder={placeholder}
+        style={{width:"100%",background:"#111827",border:`1px solid ${error?"rgba(239,68,68,0.5)":"rgba(255,255,255,0.08)"}`,borderRadius:9,padding:"10px 13px",fontSize:13,color:"#e2e8f0",outline:"none",boxSizing:"border-box"}}/>
+      {error&&<div style={{fontSize:11,color:"#ef4444",marginTop:3}}>{error}</div>}
+    </div>
+  );
+}
+
+function Sel({label,value,onChange,children}){
+  return(
+    <div style={{marginBottom:12}}>
+      {label&&<div style={{fontSize:11,color:"#6b7280",marginBottom:4,letterSpacing:1}}>{label}</div>}
+      <select value={value} onChange={e=>onChange(e.target.value)} style={{width:"100%",background:"#111827",border:"1px solid rgba(255,255,255,0.08)",borderRadius:9,padding:"10px 13px",fontSize:13,color:"#e2e8f0",outline:"none",boxSizing:"border-box"}}>
+        {children}
+      </select>
+    </div>
+  );
+}
+
+function SyncBadge({syncing,synced}){
+  if(syncing) return <span style={{fontSize:10,color:"#60a5fa",background:"rgba(59,130,246,0.1)",border:"1px solid rgba(59,130,246,0.2)",borderRadius:20,padding:"2px 8px"}}>⏳ Syncing...</span>;
+  if(synced)  return <span style={{fontSize:10,color:"#22c55e",background:"rgba(34,197,94,0.1)",border:"1px solid rgba(34,197,94,0.2)",borderRadius:20,padding:"2px 8px"}}>✓ Synced</span>;
+  return null;
+}
+
+// ── SERVICE VISIT ─────────────────────────────────────────────────────────────
+const CHECKLIST=[
+  {id:"brush",  label:"Brush Walls & Steps",icon:"🪣"},
+  {id:"skim",   label:"Skim / Net Surface",  icon:"🕸️"},
+  {id:"skimmer",label:"Skimmer Basket",      icon:"🧺"},
+  {id:"pump",   label:"Pump Basket",         icon:"⚙️"},
+  {id:"filter", label:"Cleaned Filter",      icon:"🔵",isFilter:true},
+];
+
+function ServiceVisit({pool,filterEvery,twilio,currentUser,onComplete,onBack,onLogVisit}){
+  const [step,setStep]=useState("start");
+  const [elapsed,setElapsed]=useState(0);
+  const [running,setRunning]=useState(false);
+  const timerRef=useRef();
+  const [beforePhotos,setBeforePhotos]=useState([]);
+  const [afterPhotos,setAfterPhotos]=useState([]);
+  const [chem,setChem]=useState({ph:"",chlorine:"",alkalinity:"",calcium:"",salt:"",notes:""});
+  const [checks,setChecks]=useState({});
+  const [filterDone,setFilterDone]=useState(false);
+  const [finishing,setFinishing]=useState(false);
+
+  const filterDue=pool.filterVisits>=filterEvery;
+  const required=CHECKLIST.filter(i=>!i.isFilter||filterDue);
+  const allDone=required.every(i=>i.isFilter?filterDone:!!checks[i.id]);
+
+  useEffect(()=>{
+    if(running) timerRef.current=setInterval(()=>setElapsed(e=>e+1),1000);
+    else clearInterval(timerRef.current);
+    return()=>clearInterval(timerRef.current);
+  },[running]);
+
+  const finish=async()=>{
+    setRunning(false);
+    setFinishing(true);
+    const ph=parseFloat(chem.ph)||pool.ph;
+    const cl=parseFloat(chem.chlorine)||pool.chlorine;
+    const alk=parseFloat(chem.alkalinity)||pool.alkalinity;
+    const cal=parseFloat(chem.calcium)||pool.calcium;
+    const updated={...pool,ph,chlorine:cl,alkalinity:alk,calcium:cal,notes:chem.notes||pool.notes,status:"Completed",lastService:todayStr(),photos:[...pool.photos,...beforePhotos],afterPhotos:[...afterPhotos],visits:pool.visits+1,filterVisits:filterDone?0:pool.filterVisits+1,lastDuration:elapsed};
+
+    // Log visit to Sheets
+    onLogVisit({customer:pool.customer,tech:currentUser.name,duration:elapsed,ph,chlorine:cl,alkalinity:alk,calcium:cal,notes:chem.notes,filterCleaned:filterDone,beforePhotos:beforePhotos.length,afterPhotos:afterPhotos.length});
+
+    // Send completion text
+    if(twilio?.sid&&pool.phone){
+      const body=`Hi ${pool.customer.split(" ")[0]}! ✅ Your Desert Bloom pool service is complete!\n\n💧 Chemistry:\n• pH: ${ph}\n• Chlorine: ${cl} ppm\n• Alkalinity: ${alk} ppm\n\nDuration: ${fmtTime(elapsed)}\n🌸 — Desert Bloom`;
+      try{ await sendSMS(pool.phone,body,twilio); }catch{}
+    }
+    setFinishing(false);
+    onComplete(updated);
+    setStep("done");
+  };
+
+  if(step==="done") return(
+    <div style={{fontFamily:"sans-serif",background:"#060d1a",minHeight:"100vh",color:"#e2e8f0",display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",padding:24}}>
+      <div style={{fontSize:60,marginBottom:12}}>✅</div>
+      <div style={{fontSize:22,fontWeight:800,color:"#22c55e",marginBottom:6}}>Visit Complete!</div>
+      <div style={{fontSize:14,color:"#6b7280",marginBottom:4}}>{pool.customer}</div>
+      <div style={{fontSize:13,color:"#94a3b8",marginBottom:20}}>Duration: {fmtTime(elapsed)}</div>
+      <button onClick={onBack} style={{background:"linear-gradient(135deg,#3b82f6,#06b6d4)",border:"none",borderRadius:14,padding:"14px 32px",fontSize:15,fontWeight:700,color:"#fff",cursor:"pointer"}}>← Back to Route</button>
+    </div>
+  );
+
+  const stepList=["before_photos","chemicals","checklist","after_photos"];
+  const stepIdx=stepList.indexOf(step);
+
+  return(
+    <div style={{fontFamily:"sans-serif",background:"#060d1a",minHeight:"100vh",color:"#e2e8f0",paddingBottom:30}}>
+      <div style={{background:"#0a1628",borderBottom:"1px solid rgba(59,130,246,0.15)",padding:"13px 16px"}}>
+        {step==="start"&&<button onClick={onBack} style={{background:"rgba(59,130,246,0.1)",border:"1px solid rgba(59,130,246,0.2)",borderRadius:8,padding:"6px 12px",fontSize:12,color:"#60a5fa",cursor:"pointer",marginBottom:10}}>← Back</button>}
+        <div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+          <div><div style={{fontWeight:700,fontSize:15}}>Service Visit</div><div style={{fontSize:12,color:"#6b7280"}}>{pool.customer}</div></div>
+          {elapsed>0&&<div style={{fontFamily:"monospace",fontSize:20,fontWeight:800,color:"#60a5fa"}}>{fmtTime(elapsed)}</div>}
+        </div>
+        {running&&<div style={{display:"flex",alignItems:"center",gap:6,marginTop:6}}><div style={{width:7,height:7,borderRadius:50,background:"#22c55e",boxShadow:"0 0 6px #22c55e"}}/><span style={{fontSize:11,color:"#94a3b8"}}>In progress</span></div>}
+      </div>
+
+      {step!=="start"&&<div style={{display:"flex",gap:4,padding:"10px 16px 0"}}>{stepList.map((s,i)=><div key={s} style={{flex:1,height:4,borderRadius:99,background:stepIdx>i?"#22c55e":stepIdx===i?"#3b82f6":"#1f2937"}}/>)}</div>}
+
+      <div style={{padding:"16px"}}>
+        {step==="start"&&(
+          <>
+            <div style={{textAlign:"center",padding:"12px 0 10px"}}>
+              <div style={{fontSize:40,marginBottom:8}}>🏊</div>
+              <div style={{fontSize:19,fontWeight:800,marginBottom:4}}>{pool.customer}</div>
+              <button onClick={()=>openMaps(pool.address)} style={{fontSize:13,color:"#60a5fa",background:"none",border:"none",cursor:"pointer",textDecoration:"underline"}}>📍 {pool.address.split(",")[0]}</button>
+            </div>
+            <Card style={{marginBottom:12}}>
+              <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:8}}>
+                <div style={{fontSize:13,fontWeight:700}}>🔵 Filter Tally</div>
+                {filterDue?<span style={{background:"rgba(239,68,68,0.15)",color:"#ef4444",fontSize:11,fontWeight:700,padding:"3px 9px",borderRadius:20}}>DUE THIS VISIT</span>:<span style={{fontSize:12,color:"#6b7280"}}>{filterEvery-pool.filterVisits} visits until due</span>}
+              </div>
+              <div style={{background:"#111827",borderRadius:99,height:7,overflow:"hidden",marginBottom:4}}><div style={{width:`${Math.min((pool.filterVisits/filterEvery)*100,100)}%`,height:"100%",borderRadius:99,background:filterDue?"#ef4444":"linear-gradient(90deg,#3b82f6,#06b6d4)"}}/></div>
+              <div style={{fontSize:11,color:"#374151"}}>Visit {pool.filterVisits} of {filterEvery}</div>
+            </Card>
+            {pool.notes&&<div style={{background:"rgba(245,166,35,0.06)",border:"1px solid rgba(245,166,35,0.2)",borderRadius:12,padding:"12px 14px",marginBottom:12}}><div style={{fontSize:12,fontWeight:700,color:"#f5a623",marginBottom:3}}>📝 Notes</div><div style={{fontSize:13,color:"#d1d5db"}}>{pool.notes}</div></div>}
+            <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8,marginBottom:12}}><Gauge label="pH" val={pool.ph} type="ph" unit=""/><Gauge label="Chlorine" val={pool.chlorine} type="chlorine" unit=" ppm"/></div>
+            <button onClick={()=>{setRunning(true);setStep("before_photos");}} style={{width:"100%",background:"linear-gradient(135deg,#22c55e,#16a34a)",border:"none",borderRadius:14,padding:"16px",fontSize:16,fontWeight:800,color:"#fff",cursor:"pointer"}}>▶ Start Visit & Timer</button>
+          </>
+        )}
+        {step==="before_photos"&&(
+          <>
+            <div style={{fontSize:16,fontWeight:700,marginBottom:4}}>📷 Before Photos</div>
+            <div style={{fontSize:13,color:"#6b7280",marginBottom:14}}>Capture pool condition before starting</div>
+            <Card style={{marginBottom:14}}><Photos photos={beforePhotos} onAdd={p=>setBeforePhotos(v=>[...v,p])} label="Before Photos"/></Card>
+            <button onClick={()=>setStep("chemicals")} style={{width:"100%",background:"linear-gradient(135deg,#3b82f6,#06b6d4)",border:"none",borderRadius:14,padding:"14px",fontSize:15,fontWeight:700,color:"#fff",cursor:"pointer",marginBottom:8}}>Next: Chemicals →</button>
+            <button onClick={()=>setStep("chemicals")} style={{width:"100%",background:"none",border:"none",color:"#6b7280",fontSize:13,cursor:"pointer"}}>Skip photos</button>
+          </>
+        )}
+        {step==="chemicals"&&(
+          <>
+            <div style={{fontSize:16,fontWeight:700,marginBottom:4}}>⚗️ Chemical Readings</div>
+            <div style={{fontSize:13,color:"#6b7280",marginBottom:14}}>Log today's water chemistry</div>
+            <Card style={{marginBottom:14}}>
+              <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,marginBottom:10}}>
+                {[["pH","ph","7.4"],["Chlorine (ppm)","chlorine","2.0"],["Alkalinity (ppm)","alkalinity","100"],["Calcium (ppm)","calcium","250"]].map(([l,k,ph])=>(
+                  <div key={k}><div style={{fontSize:11,color:"#6b7280",marginBottom:4}}>{l}</div><input value={chem[k]} onChange={e=>setChem(v=>({...v,[k]:e.target.value}))} placeholder={ph} style={{width:"100%",background:"#111827",border:"1px solid rgba(255,255,255,0.08)",borderRadius:8,padding:"9px 10px",fontSize:13,color:"#e2e8f0",outline:"none",boxSizing:"border-box"}}/></div>
+                ))}
+              </div>
+              {pool.salt&&<div style={{marginBottom:10}}><div style={{fontSize:11,color:"#6b7280",marginBottom:4}}>SALT (PPM)</div><input value={chem.salt} onChange={e=>setChem(v=>({...v,salt:e.target.value}))} placeholder="3200" style={{width:"100%",background:"#111827",border:"1px solid rgba(255,255,255,0.08)",borderRadius:8,padding:"9px 10px",fontSize:13,color:"#e2e8f0",outline:"none",boxSizing:"border-box"}}/></div>}
+              <div><div style={{fontSize:11,color:"#6b7280",marginBottom:4}}>CHEMICALS ADDED / NOTES</div><textarea value={chem.notes} onChange={e=>setChem(v=>({...v,notes:e.target.value}))} placeholder="e.g. Added 2 lbs shock..." style={{width:"100%",background:"#111827",border:"1px solid rgba(255,255,255,0.08)",borderRadius:8,padding:"9px 10px",fontSize:13,color:"#e2e8f0",outline:"none",resize:"none",height:70,boxSizing:"border-box"}}/></div>
+            </Card>
+            <button onClick={()=>setStep("checklist")} style={{width:"100%",background:"linear-gradient(135deg,#3b82f6,#06b6d4)",border:"none",borderRadius:14,padding:"14px",fontSize:15,fontWeight:700,color:"#fff",cursor:"pointer"}}>Next: Checklist →</button>
+          </>
+        )}
+        {step==="checklist"&&(
+          <>
+            <div style={{fontSize:16,fontWeight:700,marginBottom:4}}>✅ Service Checklist</div>
+            <div style={{fontSize:13,color:"#6b7280",marginBottom:14}}>Check off each completed task</div>
+            <Card style={{padding:"4px 16px",marginBottom:14}}>
+              {CHECKLIST.map(item=>{
+                const due=!item.isFilter||filterDue;
+                const checked=item.isFilter?filterDone:!!checks[item.id];
+                return(
+                  <div key={item.id} onClick={()=>due&&(item.isFilter?setFilterDone(v=>!v):setChecks(v=>({...v,[item.id]:!v[item.id]})))} style={{display:"flex",alignItems:"center",gap:12,padding:"13px 0",borderBottom:"1px solid rgba(255,255,255,0.04)",cursor:due?"pointer":"default",opacity:due?1:0.35}}>
+                    <div style={{width:26,height:26,borderRadius:7,background:checked?"#22c55e":"#1f2937",border:`2px solid ${checked?"#22c55e":"rgba(255,255,255,0.1)"}`,display:"flex",alignItems:"center",justifyContent:"center",fontSize:14,color:"#fff",fontWeight:700,flexShrink:0}}>{checked?"✓":""}</div>
+                    <div style={{flex:1}}>
+                      <div style={{fontSize:15,fontWeight:600,color:checked?"#22c55e":"#e2e8f0"}}>{item.icon} {item.label}</div>
+                      {item.isFilter&&filterDue&&<div style={{fontSize:11,color:"#ef4444",marginTop:2}}>🔴 Due — tally resets to 0</div>}
+                      {item.isFilter&&!filterDue&&<div style={{fontSize:11,color:"#374151"}}>Not due — {filterEvery-pool.filterVisits} visits left</div>}
+                    </div>
+                  </div>
+                );
+              })}
+            </Card>
+            <div style={{fontSize:12,color:allDone?"#22c55e":"#6b7280",textAlign:"center",marginBottom:10}}>{allDone?"✓ All tasks done!": `${Object.values(checks).filter(Boolean).length+(filterDone?1:0)} / ${required.length} tasks`}</div>
+            <button onClick={()=>setStep("after_photos")} disabled={!allDone} style={{width:"100%",background:allDone?"linear-gradient(135deg,#3b82f6,#06b6d4)":"#1f2937",border:"none",borderRadius:14,padding:"14px",fontSize:15,fontWeight:700,color:allDone?"#fff":"#374151",cursor:allDone?"pointer":"not-allowed"}}>Next: After Photos →</button>
+          </>
+        )}
+        {step==="after_photos"&&(
+          <>
+            <div style={{fontSize:16,fontWeight:700,marginBottom:4}}>📷 After Photos</div>
+            <div style={{fontSize:13,color:"#6b7280",marginBottom:14}}>Show the finished result</div>
+            <Card style={{marginBottom:14}}><Photos photos={afterPhotos} onAdd={p=>setAfterPhotos(v=>[...v,p])} label="After Photos"/></Card>
+            <button onClick={finish} disabled={finishing} style={{width:"100%",background:finishing?"#1f2937":"linear-gradient(135deg,#22c55e,#16a34a)",border:"none",borderRadius:14,padding:"15px",fontSize:15,fontWeight:700,color:finishing?"#6b7280":"#fff",cursor:finishing?"not-allowed":"pointer",marginBottom:8}}>
+              {finishing?"⏳ Finishing...":"✓ Complete Visit"}
+            </button>
+            <button onClick={finish} disabled={finishing} style={{width:"100%",background:"none",border:"none",color:"#6b7280",fontSize:13,cursor:"pointer"}}>Skip after photos & finish</button>
+          </>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ── POOL DETAIL ───────────────────────────────────────────────────────────────
+function PoolDetail({pool,filterEvery,onBack,onStartVisit,onAddPhoto,onSendOnMyWay,sending,onEdit}){
+  const filterDue=pool.filterVisits>=filterEvery;
+  return(
+    <div style={{fontFamily:"sans-serif",background:"#060d1a",minHeight:"100vh",color:"#e2e8f0",paddingBottom:30}}>
+      <PageHeader onBack={onBack} title={pool.customer} right={
+        <div style={{display:"flex",gap:8,alignItems:"center"}}>
+          {onEdit&&<button onClick={onEdit} style={{background:"rgba(255,255,255,0.05)",border:"1px solid rgba(255,255,255,0.1)",borderRadius:8,padding:"5px 12px",fontSize:12,color:"#9ca3af",cursor:"pointer"}}>Edit</button>}
+          <Badge status={pool.status}/>
+        </div>
+      }/>
+      <div style={{padding:"14px 16px"}}>
+        <Card style={{marginBottom:12,display:"flex",justifyContent:"space-between",alignItems:"flex-start"}}>
+          <div style={{flex:1}}>
+            <div style={{fontSize:11,color:"#6b7280",marginBottom:4,letterSpacing:1}}>ADDRESS</div>
+            <div style={{fontSize:14,lineHeight:1.5}}>{pool.address}</div>
+            <div style={{display:"flex",gap:6,marginTop:8,flexWrap:"wrap"}}>
+              {[pool.type,pool.size,`Stop #${pool.order}`,pool.serviceDay?`Every ${pool.serviceDay}`:null].filter(Boolean).map(t=><span key={t} style={{fontSize:11,background:"#111827",color:"#9ca3af",borderRadius:6,padding:"3px 8px"}}>{t}</span>)}
+            </div>
+            {pool.monthlyRate&&<div style={{marginTop:8,fontSize:13,fontWeight:700,color:"#22c55e"}}>Monthly Rate: {fmtMoney(pool.monthlyRate)}</div>}
+          </div>
+          <button onClick={()=>openMaps(pool.address)} style={{background:"rgba(59,130,246,0.15)",border:"1px solid rgba(59,130,246,0.3)",borderRadius:10,padding:"10px 12px",color:"#60a5fa",cursor:"pointer",marginLeft:12,display:"flex",flexDirection:"column",alignItems:"center",gap:2,minWidth:52}}>
+            <span style={{fontSize:18}}>📍</span><span style={{fontSize:10,fontWeight:600}}>Maps</span>
+          </button>
+        </Card>
+        <Card style={{marginBottom:12,border:`1px solid ${filterDue?"rgba(239,68,68,0.35)":"rgba(255,255,255,0.06)"}`}}>
+          <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:8}}>
+            <div style={{fontSize:13,fontWeight:700}}>🔵 Filter Tally</div>
+            {filterDue?<span style={{background:"rgba(239,68,68,0.15)",color:"#ef4444",fontSize:11,fontWeight:700,padding:"3px 9px",borderRadius:20}}>CLEAN THIS VISIT</span>:<span style={{fontSize:12,color:"#6b7280"}}>{filterEvery-pool.filterVisits} visits until due</span>}
+          </div>
+          <div style={{background:"#111827",borderRadius:99,height:7,overflow:"hidden",marginBottom:4}}><div style={{width:`${Math.min((pool.filterVisits/filterEvery)*100,100)}%`,height:"100%",borderRadius:99,background:filterDue?"#ef4444":"linear-gradient(90deg,#3b82f6,#06b6d4)"}}/></div>
+          <div style={{fontSize:11,color:"#374151"}}>Visit {pool.filterVisits} of {filterEvery}</div>
+        </Card>
+        <Card style={{marginBottom:12}}>
+          <div style={{fontSize:13,fontWeight:700,marginBottom:10}}>⚗️ Chemistry</div>
+          <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8}}>
+            <Gauge label="pH" val={pool.ph} type="ph" unit=""/>
+            <Gauge label="Chlorine" val={pool.chlorine} type="chlorine" unit=" ppm"/>
+            <Gauge label="Alkalinity" val={pool.alkalinity} type="alkalinity" unit=" ppm"/>
+            <Gauge label="Calcium" val={pool.calcium} type="calcium" unit=" ppm"/>
+          </div>
+          {pool.salt&&<div style={{marginTop:8,background:"#111827",borderRadius:10,padding:"10px 12px",display:"flex",justifyContent:"space-between"}}><span style={{fontSize:12,color:"#6b7280"}}>Salt (SWG)</span><span style={{fontSize:13,fontWeight:700,color:"#60a5fa"}}>{pool.salt} ppm</span></div>}
+        </Card>
+        <Card style={{marginBottom:12}}>
+          <div style={{fontSize:13,fontWeight:700,marginBottom:8}}>🔧 Equipment</div>
+          {pool.equipment.map((e,i)=>{
+            const issue=EQ_ISSUES.find(x=>x.poolId===pool.id&&x.equipment===e&&x.status==="open");
+            return(<div key={i} style={{display:"flex",alignItems:"center",gap:10,padding:"8px 0",borderBottom:i<pool.equipment.length-1?"1px solid rgba(255,255,255,0.04)":"none"}}><div style={{width:7,height:7,borderRadius:50,background:issue?"#ef4444":"#22c55e",flexShrink:0}}/><span style={{fontSize:13,flex:1}}>{e}</span>{issue&&<span style={{fontSize:10,color:"#ef4444",fontWeight:700,background:"rgba(239,68,68,0.1)",padding:"2px 6px",borderRadius:8}}>ISSUE</span>}</div>);
+          })}
+        </Card>
+        <Card style={{marginBottom:12}}>
+          <Photos photos={pool.photos} onAdd={onAddPhoto} label="Before Photos"/>
+          {pool.afterPhotos?.length>0&&(
+            <div style={{marginTop:14}}>
+              <div style={{fontSize:12,fontWeight:700,color:"#6b7280",marginBottom:8}}>After Photos ({pool.afterPhotos.length})</div>
+              <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>{pool.afterPhotos.map((p,i)=><div key={i} style={{width:70,height:70,borderRadius:10,overflow:"hidden",border:"1px solid rgba(255,255,255,0.1)"}}><img src={p.src} alt="" style={{width:"100%",height:"100%",objectFit:"cover"}}/></div>)}</div>
+            </div>
+          )}
+        </Card>
+        {pool.notes&&<div style={{background:"rgba(245,166,35,0.06)",border:"1px solid rgba(245,166,35,0.2)",borderRadius:12,padding:"12px 14px",marginBottom:12}}><div style={{fontSize:12,fontWeight:700,color:"#f5a623",marginBottom:3}}>📝 Notes</div><div style={{fontSize:13,color:"#d1d5db"}}>{pool.notes}</div></div>}
+        {pool.lastDuration&&<div style={{fontSize:12,color:"#6b7280",textAlign:"center",marginBottom:10}}>Last visit: {fmtTime(pool.lastDuration)}</div>}
+        <button onClick={onSendOnMyWay} disabled={sending} style={{width:"100%",background:sending?"#1f2937":"linear-gradient(135deg,#f5a623,#e07b00)",border:"none",borderRadius:13,padding:"13px",fontSize:14,fontWeight:700,color:sending?"#6b7280":"#fff",cursor:"pointer",marginBottom:10}}>
+          {sending?"⏳ Sending...":"🚗 Send On My Way Text"}
+        </button>
+        <button onClick={onStartVisit} style={{width:"100%",background:pool.status==="Completed"?"rgba(34,197,94,0.1)":"linear-gradient(135deg,#3b82f6,#06b6d4)",border:pool.status==="Completed"?"1px solid rgba(34,197,94,0.3)":"none",borderRadius:13,padding:"14px",fontSize:15,fontWeight:700,color:pool.status==="Completed"?"#22c55e":"#fff",cursor:"pointer"}}>
+          {pool.status==="Completed"?"✓ Completed — Start New Visit":"▶ Start Service Visit"}
+        </button>
+      </div>
+    </div>
+  );
+}
+
+// ── CUSTOMER FORM ─────────────────────────────────────────────────────────────
+function CustomerForm({existing,users,onSave,onBack}){
+  const techs=users.filter(u=>u.role==="tech");
+  const blank={customer:"",phone:"",address:"",type:"Residential",size:"",tech:techs[0]?.id||"",notes:"",equipment:"",salt:false,monthlyRate:"",serviceDay:"Monday"};
+  const [f,setF]=useState(existing?{...existing,equipment:(existing.equipment||[]).join(", "),salt:!!existing.salt,monthlyRate:existing.monthlyRate||""}:blank);
+  const [err,setErr]=useState({});
+  const [done,setDone]=useState(false);
+  const s=(k,v)=>setF(x=>({...x,[k]:v}));
+
+  const save=()=>{
+    const e={};
+    if(!f.customer.trim()) e.customer="Required";
+    if(!f.address.trim()) e.address="Required";
+    if(!f.phone.trim()) e.phone="Required";
+    setErr(e);
+    if(Object.keys(e).length) return;
+    const pool={id:existing?.id||Date.now(),customer:f.customer.trim(),phone:f.phone.trim().startsWith("+")?f.phone.trim():"+1"+f.phone.trim().replace(/\D/g,""),address:f.address.trim(),lat:33.5,lng:-111.9,type:f.type,size:f.size||"Unknown",status:existing?.status||"Scheduled",lastService:existing?.lastService||"Never",tech:f.tech,ph:existing?.ph||7.4,chlorine:existing?.chlorine||2.0,alkalinity:existing?.alkalinity||100,calcium:existing?.calcium||250,salt:f.salt?(existing?.salt||3200):null,notes:f.notes.trim(),equipment:f.equipment.split(",").map(e=>e.trim()).filter(Boolean),photos:existing?.photos||[],afterPhotos:existing?.afterPhotos||[],order:existing?.order||999,visits:existing?.visits||0,filterVisits:existing?.filterVisits||0,monthlyRate:parseFloat(f.monthlyRate)||0,serviceDay:f.serviceDay};
+    onSave(pool);
+    setDone(true);
+    setTimeout(()=>{setDone(false);onBack();},1500);
+  };
+
+  return(
+    <div style={{fontFamily:"sans-serif",background:"#060d1a",minHeight:"100vh",color:"#e2e8f0",paddingBottom:40}}>
+      <PageHeader onBack={onBack} title={existing?"Edit Customer":"Add New Customer"}/>
+      <div style={{padding:"16px"}}>
+        {done&&<div style={{background:"rgba(34,197,94,0.1)",border:"1px solid rgba(34,197,94,0.3)",borderRadius:12,padding:"14px",textAlign:"center",color:"#22c55e",fontWeight:700,marginBottom:16}}>✓ {existing?"Saved!":"Customer added!"}</div>}
+        <Card style={{marginBottom:14}}>
+          <div style={{fontSize:13,fontWeight:700,marginBottom:12}}>👤 Customer Info</div>
+          <Inp label="FULL NAME" value={f.customer} onChange={v=>s("customer",v)} placeholder="John Smith" error={err.customer}/>
+          <Inp label="PHONE" value={f.phone} onChange={v=>s("phone",v)} placeholder="(480) 555-1234" type="tel" error={err.phone}/>
+          <Inp label="ADDRESS" value={f.address} onChange={v=>s("address",v)} placeholder="123 Main St, Scottsdale, AZ" error={err.address}/>
+          <div style={{marginBottom:12}}><div style={{fontSize:11,color:"#6b7280",marginBottom:4,letterSpacing:1}}>NOTES / GATE CODE</div><textarea value={f.notes} onChange={e=>s("notes",e.target.value)} placeholder="Gate code, dogs, special instructions..." style={{width:"100%",background:"#111827",border:"1px solid rgba(255,255,255,0.08)",borderRadius:9,padding:"10px 13px",fontSize:13,color:"#e2e8f0",outline:"none",resize:"none",height:70,boxSizing:"border-box"}}/></div>
+        </Card>
+        <Card style={{marginBottom:14}}>
+          <div style={{fontSize:13,fontWeight:700,marginBottom:12}}>🏊 Pool & Service Info</div>
+          <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,marginBottom:0}}>
+            <Sel label="TYPE" value={f.type} onChange={v=>s("type",v)}><option>Residential</option><option>Commercial</option></Sel>
+            <Inp label="SIZE" value={f.size} onChange={v=>s("size",v)} placeholder="15,000 gal"/>
+          </div>
+          <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10}}>
+            <Inp label="MONTHLY RATE ($)" value={f.monthlyRate} onChange={v=>s("monthlyRate",v)} placeholder="149" type="number"/>
+            <Sel label="SERVICE DAY" value={f.serviceDay} onChange={v=>s("serviceDay",v)}>
+              {["Monday","Tuesday","Wednesday","Thursday","Friday","Saturday"].map(d=><option key={d}>{d}</option>)}
+            </Sel>
+          </div>
+          <Sel label="ASSIGN TO TECH" value={f.tech} onChange={v=>s("tech",v)}>{techs.map(t=><option key={t.id} value={t.id}>{t.name}</option>)}</Sel>
+          <Inp label="EQUIPMENT (comma separated)" value={f.equipment} onChange={v=>s("equipment",v)} placeholder="Hayward Pump, Pentair Filter"/>
+          <div onClick={()=>s("salt",!f.salt)} style={{display:"flex",alignItems:"center",gap:10,cursor:"pointer",padding:"6px 0"}}>
+            <div style={{width:24,height:24,borderRadius:6,background:f.salt?"#3b82f6":"#111827",border:`2px solid ${f.salt?"#3b82f6":"rgba(255,255,255,0.1)"}`,display:"flex",alignItems:"center",justifyContent:"center",fontSize:13,color:"#fff"}}>{f.salt?"✓":""}</div>
+            <span style={{fontSize:14}}>Salt Water Pool (SWG)</span>
+          </div>
+        </Card>
+        <button onClick={save} style={{width:"100%",background:"linear-gradient(135deg,#3b82f6,#06b6d4)",border:"none",borderRadius:14,padding:"15px",fontSize:15,fontWeight:700,color:"#fff",cursor:"pointer"}}>{existing?"Save Changes":"➕ Add Customer"}</button>
+      </div>
+    </div>
+  );
+}
+
+// ── USER MANAGER ──────────────────────────────────────────────────────────────
+function UserManager({users,onSave,onBack}){
+  const [list,setList]=useState(users);
+  const [editing,setEditing]=useState(null);
+  const [form,setForm]=useState({name:"",role:"tech",password:"",phone:""});
+  const [saved,setSaved]=useState(false);
+
+  const saveUser=()=>{
+    if(!form.name.trim()||!form.password.trim()) return;
+    const u=editing?{...editing,...form,name:form.name.trim()}:{id:Date.now().toString(),name:form.name.trim(),role:form.role,password:form.password,phone:form.phone};
+    const updated=editing?list.map(x=>x.id===editing.id?u:x):[...list,u];
+    setList(updated);onSave(updated);
+    setEditing(null);setForm({name:"",role:"tech",password:"",phone:""});
+    setSaved(true);setTimeout(()=>setSaved(false),2000);
+  };
+
+  return(
+    <div style={{fontFamily:"sans-serif",background:"#060d1a",minHeight:"100vh",color:"#e2e8f0",paddingBottom:40}}>
+      <PageHeader onBack={onBack} title="👥 User Management"/>
+      <div style={{padding:"16px"}}>
+        {saved&&<div style={{background:"rgba(34,197,94,0.1)",border:"1px solid rgba(34,197,94,0.3)",borderRadius:10,padding:"10px 14px",color:"#22c55e",fontWeight:600,fontSize:13,marginBottom:14}}>✓ Saved & synced!</div>}
+        <Card style={{marginBottom:16}}>
+          <div style={{fontSize:13,fontWeight:700,marginBottom:12}}>{editing?"✏️ Edit User":"➕ Add New User"}</div>
+          <Inp label="NAME" value={form.name} onChange={v=>setForm(f=>({...f,name:v}))} placeholder="Full name"/>
+          <Sel label="ROLE" value={form.role} onChange={v=>setForm(f=>({...f,role:v}))}><option value="tech">Technician</option><option value="owner">Owner</option></Sel>
+          <Inp label="PASSWORD" value={form.password} onChange={v=>setForm(f=>({...f,password:v}))} placeholder="Password" type="password"/>
+          <Inp label="PHONE" value={form.phone} onChange={v=>setForm(f=>({...f,phone:v}))} placeholder="(480) 555-1234" type="tel"/>
+          <div style={{display:"flex",gap:8}}>
+            {editing&&<button onClick={()=>{setEditing(null);setForm({name:"",role:"tech",password:"",phone:""}); }} style={{flex:1,background:"#111827",border:"1px solid rgba(255,255,255,0.08)",borderRadius:10,padding:"11px",fontSize:13,color:"#9ca3af",cursor:"pointer"}}>Cancel</button>}
+            <button onClick={saveUser} style={{flex:2,background:"linear-gradient(135deg,#3b82f6,#06b6d4)",border:"none",borderRadius:10,padding:"11px",fontSize:14,fontWeight:700,color:"#fff",cursor:"pointer"}}>{editing?"Save Changes":"Add User"}</button>
+          </div>
+        </Card>
+        <div style={{fontSize:12,fontWeight:700,color:"#6b7280",marginBottom:8,letterSpacing:1}}>CURRENT USERS ({list.length})</div>
+        {list.map(u=>(
+          <div key={u.id} style={{background:"#0d1626",borderRadius:13,padding:"13px 14px",marginBottom:8,border:"1px solid rgba(255,255,255,0.05)",display:"flex",alignItems:"center",gap:12}}>
+            <div style={{width:40,height:40,borderRadius:50,background:u.role==="owner"?"linear-gradient(135deg,#f97316,#ec4899)":"linear-gradient(135deg,#3b82f6,#8b5cf6)",display:"flex",alignItems:"center",justifyContent:"center",fontSize:12,fontWeight:800,color:"#fff",flexShrink:0}}>{u.name.split(" ").map(n=>n[0]).join("").slice(0,2)}</div>
+            <div style={{flex:1}}><div style={{fontWeight:600,fontSize:14}}>{u.name}</div><div style={{fontSize:11,color:"#6b7280"}}>{u.role==="owner"?"Owner":"Technician"} · {u.phone||"No phone"}</div></div>
+            <div style={{display:"flex",gap:6}}>
+              <button onClick={()=>{setEditing(u);setForm({name:u.name,role:u.role,password:u.password,phone:u.phone||""});}} style={{background:"rgba(59,130,246,0.1)",border:"1px solid rgba(59,130,246,0.2)",borderRadius:8,padding:"5px 10px",fontSize:12,color:"#60a5fa",cursor:"pointer"}}>Edit</button>
+              {u.id!=="owner"&&<button onClick={()=>{const u2=list.filter(x=>x.id!==u.id);setList(u2);onSave(u2);}} style={{background:"rgba(239,68,68,0.1)",border:"1px solid rgba(239,68,68,0.2)",borderRadius:8,padding:"5px 10px",fontSize:12,color:"#ef4444",cursor:"pointer"}}>Remove</button>}
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+// ── ROUTE LIST ────────────────────────────────────────────────────────────────
+function RouteList({pools,onReorder,onSelect,techFilter,setTechFilter,users,showFilter=true}){
+  const [dragging,setDragging]=useState(null);
+  const [over,setOver]=useState(null);
+  const sorted=[...pools].sort((a,b)=>(a.order||99)-(b.order||99));
+  const techs=users.filter(u=>u.role==="tech");
+  const drop=(e,tid)=>{ e.preventDefault(); if(dragging===tid){setDragging(null);setOver(null);return;} const fi=sorted.findIndex(p=>p.id===dragging),ti=sorted.findIndex(p=>p.id===tid); const re=[...sorted];const[m]=re.splice(fi,1);re.splice(ti,0,m); onReorder(re.map((p,i)=>({...p,order:i+1}))); setDragging(null);setOver(null); };
+  return(
+    <div style={{padding:"14px 16px"}}>
+      <div style={{fontSize:17,fontWeight:700,marginBottom:2}}>Route Planner</div>
+      <div style={{fontSize:12,color:"#6b7280",marginBottom:12}}>Drag ⠿ handle to reorder</div>
+      {showFilter&&(<div style={{display:"flex",gap:6,marginBottom:14,flexWrap:"wrap"}}>
+        <button onClick={()=>setTechFilter("all")} style={{background:techFilter==="all"?"#3b82f6":"#0d1626",color:techFilter==="all"?"#fff":"#9ca3af",border:`1px solid ${techFilter==="all"?"#3b82f6":"rgba(255,255,255,0.07)"}`,borderRadius:20,padding:"5px 14px",fontSize:12,fontWeight:600,cursor:"pointer"}}>All</button>
+        {techs.map(t=><button key={t.id} onClick={()=>setTechFilter(t.id)} style={{background:techFilter===t.id?"#3b82f6":"#0d1626",color:techFilter===t.id?"#fff":"#9ca3af",border:`1px solid ${techFilter===t.id?"#3b82f6":"rgba(255,255,255,0.07)"}`,borderRadius:20,padding:"5px 14px",fontSize:12,fontWeight:600,cursor:"pointer"}}>{t.name.split(" ")[0]}</button>)}
+      </div>)}
+      {sorted.map((pool,i)=>(
+        <div key={pool.id} draggable onDragStart={e=>{setDragging(pool.id);e.dataTransfer.effectAllowed="move";}} onDragOver={e=>{e.preventDefault();setOver(pool.id);}} onDrop={e=>drop(e,pool.id)} onDragEnd={()=>{setDragging(null);setOver(null);}} style={{background:over===pool.id?"rgba(59,130,246,0.1)":"#0d1626",borderRadius:13,padding:"12px 14px",marginBottom:8,border:`2px solid ${dragging===pool.id?"#3b82f6":over===pool.id?"rgba(59,130,246,0.4)":"rgba(255,255,255,0.04)"}`,opacity:dragging===pool.id?0.4:1,cursor:"grab",userSelect:"none"}}>
+          <div style={{display:"flex",gap:10,alignItems:"flex-start"}}>
+            <div style={{display:"flex",flexDirection:"column",alignItems:"center",gap:3,paddingTop:2}}>
+              <span style={{fontSize:14,color:"#374151"}}>⠿</span>
+              <div style={{width:24,height:24,borderRadius:50,background:pool.status==="Completed"?"#22c55e":"#1f2937",display:"flex",alignItems:"center",justifyContent:"center",fontSize:10,fontWeight:700,color:pool.status==="Completed"?"#fff":"#6b7280"}}>{pool.status==="Completed"?"✓":i+1}</div>
+            </div>
+            <div style={{flex:1}}>
+              <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:4}}><div style={{fontWeight:600,fontSize:14}}>{pool.customer}</div><Badge status={pool.status}/></div>
+              <button onClick={e=>{e.stopPropagation();openMaps(pool.address);}} style={{fontSize:12,color:"#60a5fa",background:"none",border:"none",cursor:"pointer",padding:0,textDecoration:"underline",textAlign:"left",marginBottom:6}}>📍 {pool.address.split(",")[0]}</button>
+              <div style={{display:"flex",gap:6,flexWrap:"wrap"}}>
+                <span style={{fontSize:11,background:"#111827",color:"#9ca3af",borderRadius:6,padding:"2px 7px"}}>{users.find(u=>u.id===pool.tech)?.name||pool.tech}</span>
+                {pool.monthlyRate&&<span style={{fontSize:11,background:"rgba(34,197,94,0.1)",color:"#22c55e",borderRadius:6,padding:"2px 7px"}}>{fmtMoney(pool.monthlyRate)}/mo</span>}
+                <button onClick={e=>{e.stopPropagation();onSelect(pool);}} style={{fontSize:11,background:"rgba(59,130,246,0.1)",border:"1px solid rgba(59,130,246,0.2)",color:"#60a5fa",borderRadius:6,padding:"2px 8px",cursor:"pointer"}}>Details</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+// ── PROFIT TRACKER ────────────────────────────────────────────────────────────
+function ProfitTracker({pools,invoices,setInvoices,users}){
+  const [showAdd,setShowAdd]=useState(false);
+  const [form,setForm]=useState({customer:"",amount:"",serviceDate:todayStr(),status:"Pending",notes:""});
+  const [filter,setFilter]=useState("all");
+
+  const totalRevenue=invoices.filter(i=>i.status==="Paid").reduce((s,i)=>s+Number(i.amount||0),0);
+  const totalPending=invoices.filter(i=>i.status==="Pending").reduce((s,i)=>s+Number(i.amount||0),0);
+  const totalOverdue=invoices.filter(i=>i.status==="Overdue").reduce((s,i)=>s+Number(i.amount||0),0);
+  const monthlyRecurring=pools.reduce((s,p)=>s+Number(p.monthlyRate||0),0);
+
+  const markPaid=(id)=>setInvoices(inv=>inv.map(i=>i.id===id?{...i,status:"Paid",paidDate:todayStr()}:i));
+  const markOverdue=(id)=>setInvoices(inv=>inv.map(i=>i.id===id?{...i,status:"Overdue"}:i));
+
+  const addInvoice=()=>{
+    if(!form.customer||!form.amount) return;
+    const inv={id:Date.now(),customer:form.customer,amount:parseFloat(form.amount),serviceDate:form.serviceDate,status:form.status,paidDate:"",notes:form.notes};
+    setInvoices(i=>[...i,inv]);
+    setForm({customer:"",amount:"",serviceDate:todayStr(),status:"Pending",notes:""});
+    setShowAdd(false);
+  };
+
+  const filtered=filter==="all"?invoices:invoices.filter(i=>i.status===filter);
+
+  return(
+    <div style={{padding:"16px"}}>
+      <div style={{fontSize:18,fontWeight:700,marginBottom:14}}>💰 Profit Tracker</div>
+
+      {/* Summary cards */}
+      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,marginBottom:14}}>
+        <div style={{background:"linear-gradient(135deg,rgba(34,197,94,0.15),rgba(34,197,94,0.05))",borderRadius:14,padding:"14px",border:"1px solid rgba(34,197,94,0.25)"}}>
+          <div style={{fontSize:11,color:"#6b7280",marginBottom:4}}>COLLECTED</div>
+          <div style={{fontSize:24,fontWeight:800,color:"#22c55e"}}>{fmtMoney(totalRevenue)}</div>
+          <div style={{fontSize:11,color:"#6b7280",marginTop:2}}>{invoices.filter(i=>i.status==="Paid").length} invoices paid</div>
+        </div>
+        <div style={{background:"linear-gradient(135deg,rgba(245,166,35,0.15),rgba(245,166,35,0.05))",borderRadius:14,padding:"14px",border:"1px solid rgba(245,166,35,0.25)"}}>
+          <div style={{fontSize:11,color:"#6b7280",marginBottom:4}}>PENDING</div>
+          <div style={{fontSize:24,fontWeight:800,color:"#f5a623"}}>{fmtMoney(totalPending)}</div>
+          <div style={{fontSize:11,color:"#6b7280",marginTop:2}}>{invoices.filter(i=>i.status==="Pending").length} awaiting payment</div>
+        </div>
+        <div style={{background:"linear-gradient(135deg,rgba(239,68,68,0.15),rgba(239,68,68,0.05))",borderRadius:14,padding:"14px",border:"1px solid rgba(239,68,68,0.25)"}}>
+          <div style={{fontSize:11,color:"#6b7280",marginBottom:4}}>OVERDUE</div>
+          <div style={{fontSize:24,fontWeight:800,color:"#ef4444"}}>{fmtMoney(totalOverdue)}</div>
+          <div style={{fontSize:11,color:"#6b7280",marginTop:2}}>{invoices.filter(i=>i.status==="Overdue").length} overdue</div>
+        </div>
+        <div style={{background:"linear-gradient(135deg,rgba(59,130,246,0.15),rgba(59,130,246,0.05))",borderRadius:14,padding:"14px",border:"1px solid rgba(59,130,246,0.25)"}}>
+          <div style={{fontSize:11,color:"#6b7280",marginBottom:4}}>MONTHLY RECURRING</div>
+          <div style={{fontSize:24,fontWeight:800,color:"#60a5fa"}}>{fmtMoney(monthlyRecurring)}</div>
+          <div style={{fontSize:11,color:"#6b7280",marginTop:2}}>{pools.length} active accounts</div>
+        </div>
+      </div>
+
+      {/* Tech earnings breakdown */}
+      <Card style={{marginBottom:14}}>
+        <div style={{fontSize:13,fontWeight:700,marginBottom:10}}>👷 Revenue by Tech</div>
+        {users.filter(u=>u.role==="tech").map(t=>{
+          const techPools=pools.filter(p=>p.tech===t.id);
+          const techRevenue=invoices.filter(i=>i.status==="Paid"&&techPools.find(p=>p.customer===i.customer)).reduce((s,i)=>s+Number(i.amount||0),0);
+          const techMonthly=techPools.reduce((s,p)=>s+Number(p.monthlyRate||0),0);
+          return(
+            <div key={t.id} style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"10px 0",borderBottom:"1px solid rgba(255,255,255,0.04)"}}>
+              <div><div style={{fontWeight:600,fontSize:14}}>{t.name}</div><div style={{fontSize:11,color:"#6b7280"}}>{techPools.length} pools · {fmtMoney(techMonthly)}/mo</div></div>
+              <div style={{textAlign:"right"}}><div style={{fontSize:15,fontWeight:700,color:"#22c55e"}}>{fmtMoney(techRevenue)}</div><div style={{fontSize:11,color:"#6b7280"}}>collected</div></div>
+            </div>
+          );
+        })}
+      </Card>
+
+      {/* Add invoice */}
+      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:10}}>
+        <div style={{fontSize:13,fontWeight:700,color:"#cbd5e0"}}>Invoices</div>
+        <button onClick={()=>setShowAdd(!showAdd)} style={{background:"linear-gradient(135deg,#3b82f6,#06b6d4)",border:"none",borderRadius:10,padding:"7px 14px",fontSize:12,fontWeight:700,color:"#fff",cursor:"pointer"}}>+ Add Invoice</button>
+      </div>
+
+      {showAdd&&(
+        <Card style={{marginBottom:14}}>
+          <Sel label="CUSTOMER" value={form.customer} onChange={v=>setForm(f=>({...f,customer:v}))}>
+            <option value="">Select customer</option>
+            {pools.map(p=><option key={p.id} value={p.customer}>{p.customer}</option>)}
+          </Sel>
+          <Inp label="AMOUNT ($)" value={form.amount} onChange={v=>setForm(f=>({...f,amount:v}))} placeholder="149" type="number"/>
+          <Inp label="SERVICE DATE" value={form.serviceDate} onChange={v=>setForm(f=>({...f,serviceDate:v}))} placeholder="Apr 27"/>
+          <Sel label="STATUS" value={form.status} onChange={v=>setForm(f=>({...f,status:v}))}><option>Pending</option><option>Paid</option><option>Overdue</option></Sel>
+          <Inp label="NOTES" value={form.notes} onChange={v=>setForm(f=>({...f,notes:v}))} placeholder="Optional notes"/>
+          <div style={{display:"flex",gap:8}}>
+            <button onClick={()=>setShowAdd(false)} style={{flex:1,background:"#111827",border:"1px solid rgba(255,255,255,0.08)",borderRadius:10,padding:"10px",fontSize:13,color:"#9ca3af",cursor:"pointer"}}>Cancel</button>
+            <button onClick={addInvoice} style={{flex:2,background:"linear-gradient(135deg,#3b82f6,#06b6d4)",border:"none",borderRadius:10,padding:"10px",fontSize:14,fontWeight:700,color:"#fff",cursor:"pointer"}}>Add Invoice</button>
+          </div>
+        </Card>
+      )}
+
+      {/* Filter tabs */}
+      <div style={{display:"flex",gap:6,marginBottom:12}}>
+        {["all","Paid","Pending","Overdue"].map(f=>(
+          <button key={f} onClick={()=>setFilter(f)} style={{background:filter===f?"#3b82f6":"#0d1626",color:filter===f?"#fff":"#9ca3af",border:`1px solid ${filter===f?"#3b82f6":"rgba(255,255,255,0.07)"}`,borderRadius:20,padding:"5px 12px",fontSize:11,fontWeight:600,cursor:"pointer"}}>{f==="all"?"All":f}</button>
+        ))}
+      </div>
+
+      {filtered.length===0&&<div style={{background:"#0d1626",borderRadius:12,padding:"20px",textAlign:"center",color:"#374151",fontSize:13}}>No invoices</div>}
+      {filtered.map(inv=>(
+        <div key={inv.id} style={{background:"#0d1626",borderRadius:13,padding:"13px 14px",marginBottom:8,border:`1px solid ${inv.status==="Paid"?"rgba(34,197,94,0.15)":inv.status==="Overdue"?"rgba(239,68,68,0.2)":"rgba(255,255,255,0.06)"}`}}>
+          <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:6}}>
+            <div><div style={{fontWeight:600,fontSize:14}}>{inv.customer}</div><div style={{fontSize:11,color:"#6b7280"}}>{inv.serviceDate}{inv.paidDate?` · Paid ${inv.paidDate}`:""}</div>{inv.notes&&<div style={{fontSize:11,color:"#9ca3af",marginTop:2}}>{inv.notes}</div>}</div>
+            <div style={{textAlign:"right"}}>
+              <div style={{fontSize:18,fontWeight:800,color:inv.status==="Paid"?"#22c55e":inv.status==="Overdue"?"#ef4444":"#f5a623"}}>{fmtMoney(inv.amount)}</div>
+              <div style={{fontSize:10,fontWeight:700,color:inv.status==="Paid"?"#22c55e":inv.status==="Overdue"?"#ef4444":"#f5a623"}}>{inv.status}</div>
+            </div>
+          </div>
+          {inv.status!=="Paid"&&(
+            <div style={{display:"flex",gap:6}}>
+              <button onClick={()=>markPaid(inv.id)} style={{flex:1,background:"rgba(34,197,94,0.1)",border:"1px solid rgba(34,197,94,0.25)",borderRadius:8,padding:"7px",fontSize:12,fontWeight:600,color:"#22c55e",cursor:"pointer"}}>✓ Mark Paid</button>
+              {inv.status!=="Overdue"&&<button onClick={()=>markOverdue(inv.id)} style={{flex:1,background:"rgba(239,68,68,0.08)",border:"1px solid rgba(239,68,68,0.2)",borderRadius:8,padding:"7px",fontSize:12,fontWeight:600,color:"#ef4444",cursor:"pointer"}}>Mark Overdue</button>}
+            </div>
+          )}
+        </div>
+      ))}
+    </div>
+  );
+}
+
+// ── MAIN APP ──────────────────────────────────────────────────────────────────
+function DesertBloom(){
+  const [loading,setLoading]=useState(true);
+  const [syncStatus,setSyncStatus]=useState(null); // null | "syncing" | "synced"
+  const [users,setUsers]     =useState(DEFAULT_USERS);
+  const [pools,setPools]     =useState(DEFAULT_POOLS);
+  const [invoices,setInvoices]=useState(DEFAULT_INVOICES);
+  const [filterEvery,setFilterEvery]=useState(FILTER_DEFAULT);
+  const [twilio,setTwilio]   =useState({sid:"",token:"",from:"+14805715896"});
+  const [smsLog,setSmsLog]   =useState([]);
+  const [user,setUser]       =useState(()=>lsGet("db_session",null));
+  const [loginCreds,setLoginCreds]=useState({u:"",p:""});
+  const [loginErr,setLoginErr]=useState("");
+  const [ownerTab,setOwnerTab]=useState("overview");
+  const [techTab,setTechTab] =useState("day");
+  const [selPool,setSelPool] =useState(null);
+  const [visitPool,setVisitPool]=useState(null);
+  const [addCustomer,setAddCustomer]=useState(null);
+  const [showUsers,setShowUsers]=useState(false);
+  const [routeFilter,setRouteFilter]=useState("all");
+  const [optimizing,setOptimizing]=useState(false);
+  const [sending,setSending] =useState({});
+  const [remindersSent,setRemindersSent]=useState({});
+  const [twilioSaved,setTwilioSaved]=useState(false);
+  const [filterSaved,setFilterSaved]=useState(false);
+
+  // Load all data from Google Sheets on mount
+  useEffect(()=>{
+    DB.getAll().then(data=>{
+      if(data){
+        // Parse config
+        if(data.config){
+          const tw=data.config.find(r=>r.Key==="twilio");
+          if(tw) try{setTwilio(JSON.parse(tw.Value));}catch{}
+          const fe=data.config.find(r=>r.Key==="filterEvery");
+          if(fe) try{setFilterEvery(JSON.parse(fe.Value));}catch{}
+        }
+        // Parse pools
+        if(data.pools&&data.pools.length){
+          try{
+            const p=data.pools.map(r=>r["JSON Data"]?JSON.parse(r["JSON Data"]):r).filter(Boolean);
+            if(p.length) setPools(p);
+          }catch{}
+        }
+        // Parse users
+        if(data.users&&data.users.length){
+          try{
+            const u=data.users.map(r=>({id:r.ID,name:r.Name,role:r.Role,password:r.Password,phone:r.Phone})).filter(u=>u.id&&u.name);
+            if(u.length) setUsers(u);
+          }catch{}
+        }
+        // Parse invoices
+        if(data.invoices&&data.invoices.length){
+          try{
+            const inv=data.invoices.map(r=>({id:r.ID,customer:r.Customer,amount:parseFloat(r.Amount)||0,serviceDate:r["Service Date"],status:r.Status,paidDate:r["Paid Date"]||"",notes:r.Notes||""})).filter(i=>i.customer);
+            if(inv.length) setInvoices(inv);
+          }catch{}
+        }
+      }
+      setLoading(false);
+    }).catch(()=>setLoading(false));
+  },[]);
+
+  // Auto reminders once per day
+  useEffect(()=>{
+    if(!twilio.sid||loading) return;
+    const lastCheck=lsGet("db_lastReminder","");
+    const todayKey=new Date().toDateString();
+    if(lastCheck===todayKey) return;
+    lsSet("db_lastReminder",todayKey);
+    pools.filter(p=>p.status==="Due Today"||p.status==="Scheduled").forEach(pool=>{
+      const first=pool.customer.split(" ")[0];
+      const body=`Hi ${first}! Just a reminder your Desert Bloom pool service is coming up soon. 🌸 — Desert Bloom`;
+      sendSMS(pool.phone,body,twilio).then(()=>{
+        const entry={customer:pool.customer,phone:pool.phone,body,type:"reminder",status:"sent",time:new Date().toLocaleTimeString()};
+        setSmsLog(l=>[...l,entry]);
+        DB.append("smslog",entry);
+      }).catch(()=>{});
+    });
+  },[twilio.sid,loading]);
+
+  const sync=async(key,data)=>{
+    setSyncStatus("syncing");
+    await DB.set(key,data);
+    setSyncStatus("synced");
+    setTimeout(()=>setSyncStatus(null),2000);
+  };
+
+  const upUsers=useCallback((u,currentUser)=>{
+    setUsers(u);
+    // If the logged-in user was edited, update their session too
+    const updatedSelf = u.find(x=>x.id===currentUser?.id);
+    if(updatedSelf){ setUser(updatedSelf); lsSet("db_session",updatedSelf); }
+    sync("users",u);
+  },[]);
+  const upPools=useCallback(p=>{setPools(p);sync("pools",p);},[]);
+  const upInvoices=useCallback(inv=>{setInvoices(inv);sync("invoices",inv);},[]);
+  const upPool=useCallback(u=>{setPools(p=>p.map(x=>x.id===u.id?u:x));setSelPool(u);sync("pools",pools.map(x=>x.id===u.id?u:x));},[pools]);
+
+  const doSend=async(pool,type)=>{
+    const key=`${pool.id}_${type}`;
+    if(!twilio.sid||!twilio.token){alert("⚠️ Set up Twilio in Settings first");return;}
+    const first=pool.customer.split(" ")[0];
+    const body=type==="onmyway"?`Hi ${first}! Your Desert Bloom pool tech is on the way! 🌸 Thanks!`:`Hi ${first}! Reminder: your Desert Bloom pool service is coming up soon. 🌸 — Desert Bloom`;
+    setSending(s=>({...s,[key]:true}));
+    try{
+      await sendSMS(pool.phone,body,twilio);
+      const entry={customer:pool.customer,phone:pool.phone,body,type,status:"sent",time:new Date().toLocaleTimeString()};
+      setSmsLog(l=>[...l,entry]);DB.append("smslog",entry);
+      if(type==="reminder") setRemindersSent(r=>({...r,[pool.id]:true}));
+    }catch(e){
+      const entry={customer:pool.customer,phone:pool.phone,body,type,status:"failed",error:e.message,time:new Date().toLocaleTimeString()};
+      setSmsLog(l=>[...l,entry]);DB.append("smslog",entry);
+      alert(`❌ Send failed: ${e.message}`);
+    }
+    setSending(s=>({...s,[key]:false}));
+  };
+
+  const nn=(pts)=>{ if(pts.length<=1)return pts; const res=[pts[0]],rem=[...pts.slice(1)]; while(rem.length){const last=res[res.length-1];let bi=0,bd=Infinity;rem.forEach((p,i)=>{const d=Math.hypot(p.lat-last.lat,p.lng-last.lng);if(d<bd){bd=d;bi=i;}});res.push(rem[bi]);rem.splice(bi,1);} return res; };
+  const optimize=(subset)=>{setOptimizing(true);setTimeout(()=>{const opt=nn(subset).map((p,i)=>({...p,order:i+1}));const merged=[...pools.filter(p=>!subset.find(s=>s.id===p.id)),...opt];upPools(merged);setOptimizing(false);},1200);};
+
+  const doLogin=()=>{
+    const u=users.find(u=>(u.name.toLowerCase().replace(/\s/g,"")===(loginCreds.u.toLowerCase().replace(/\s/g,""))||u.id?.toLowerCase()===loginCreds.u.toLowerCase())&&u.password===loginCreds.p);
+    if(u){setUser(u);lsSet("db_session",u);setLoginErr("");}
+    else setLoginErr("Wrong username or password.");
+  };
+  const logout=()=>{setUser(null);lsSet("db_session",null);};
+
+  const saveTwilio=async(cfg)=>{
+    setTwilio(cfg);
+    await DB.setConfig("twilio",cfg);
+    setTwilioSaved(true);setTimeout(()=>setTwilioSaved(false),3000);
+  };
+
+  // ── LOADING ──
+  if(loading) return(
+    <div style={{fontFamily:"sans-serif",background:"#060d1a",minHeight:"100vh",display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",color:"#e2e8f0"}}>
+      <div style={{fontSize:52,marginBottom:16}}>🌸</div>
+      <div style={{fontSize:18,fontWeight:700,marginBottom:8}}>Desert Bloom</div>
+      <div style={{fontSize:13,color:"#6b7280"}}>Loading from Google Sheets...</div>
+      <div style={{marginTop:20,width:40,height:4,background:"#1f2937",borderRadius:99,overflow:"hidden"}}>
+        <div style={{width:"60%",height:"100%",background:"linear-gradient(90deg,#3b82f6,#06b6d4)",borderRadius:99,animation:"none"}}/>
+      </div>
+    </div>
+  );
+
+  // ── LOGIN ──
+  if(!user) return(
+    <div style={{fontFamily:"sans-serif",background:"linear-gradient(160deg,#060d1a,#0a1628)",minHeight:"100vh",display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",padding:20}}>
+      <div style={{textAlign:"center",marginBottom:28}}>
+        <div style={{fontSize:52,marginBottom:8}}>🌸</div>
+        <div style={{fontSize:26,fontWeight:800,color:"#f0f9ff",letterSpacing:"-0.5px"}}>Desert Bloom</div>
+        <div style={{fontSize:11,color:"#374151",marginTop:4,letterSpacing:3,textTransform:"uppercase"}}>Pool Service</div>
+      </div>
+      <div style={{background:"#0d1626",borderRadius:20,padding:"26px 22px",width:"100%",maxWidth:340,border:"1px solid rgba(59,130,246,0.15)"}}>
+        <Inp label="USERNAME" value={loginCreds.u} onChange={v=>setLoginCreds(x=>({...x,u:v}))} placeholder="Brett / JoseR / TylerM"/>
+        <Inp label="PASSWORD" value={loginCreds.p} onChange={v=>setLoginCreds(x=>({...x,p:v}))} placeholder="••••••••" type="password"/>
+        {loginErr&&<div style={{background:"rgba(239,68,68,0.1)",border:"1px solid rgba(239,68,68,0.25)",borderRadius:8,padding:"8px 12px",fontSize:12,color:"#f87171",marginBottom:14}}>{loginErr}</div>}
+        <button onClick={doLogin} style={{width:"100%",background:"linear-gradient(135deg,#3b82f6,#06b6d4)",border:"none",borderRadius:12,padding:"13px",fontSize:14,fontWeight:700,color:"#fff",cursor:"pointer",marginBottom:12}}>Sign In →</button>
+        <div style={{padding:"12px",background:"rgba(255,255,255,0.02)",borderRadius:10,border:"1px solid rgba(255,255,255,0.05)"}}>
+          <div style={{fontSize:10,color:"#374151",marginBottom:6,letterSpacing:1}}>QUICK LOGIN</div>
+          {users.slice(0,4).map(u=><div key={u.id} onClick={()=>setLoginCreds({u:u.name.replace(/\s/g,""),p:u.password})} style={{fontSize:11,color:"#60a5fa",cursor:"pointer",marginBottom:3}}>▸ {u.name} ({u.role})</div>)}
+        </div>
+      </div>
+    </div>
+  );
+
+  // ── SPECIAL SCREENS ──
+  if(visitPool) return <ServiceVisit pool={visitPool} filterEvery={filterEvery} twilio={twilio} currentUser={user} onComplete={u=>{upPool(u);setVisitPool(null);setSelPool(null);}} onBack={()=>setVisitPool(null)} onLogVisit={v=>DB.append("visits",v)}/>;
+  if(addCustomer!==null) return <CustomerForm existing={addCustomer===true?null:addCustomer} users={users} onSave={pool=>{const updated=[...pools.filter(x=>x.id!==pool.id),pool];upPools(updated);}} onBack={()=>setAddCustomer(null)}/>;
+  if(showUsers) return <UserManager users={users} onSave={u=>upUsers(u,user)} onBack={()=>setShowUsers(false)}/>;
+  if(selPool) return <PoolDetail pool={selPool} filterEvery={filterEvery} onBack={()=>setSelPool(null)} onStartVisit={()=>setVisitPool(selPool)} onAddPhoto={ph=>upPool({...selPool,photos:[...selPool.photos,ph]})} onSendOnMyWay={()=>doSend(selPool,"onmyway")} sending={!!sending[`${selPool.id}_onmyway`]} onEdit={()=>setAddCustomer(selPool)}/>;
+
+  const AppShell=({subtitle,nav,content})=>(
+    <div style={{fontFamily:"sans-serif",background:"#060d1a",minHeight:"100vh",color:"#e2e8f0"}}>
+      <div style={{background:"linear-gradient(135deg,#080f1e,#0d1f3c)",borderBottom:"1px solid rgba(59,130,246,0.15)",padding:"13px 16px",display:"flex",alignItems:"center",justifyContent:"space-between"}}>
+        <div style={{display:"flex",alignItems:"center",gap:10}}>
+          <div style={{width:34,height:34,borderRadius:10,background:"linear-gradient(135deg,#f97316,#ec4899)",display:"flex",alignItems:"center",justifyContent:"center",fontSize:18}}>🌸</div>
+          <div><div style={{fontSize:16,fontWeight:800,color:"#fff"}}>Desert Bloom</div><div style={{fontSize:10,color:"#6b7280",letterSpacing:1,textTransform:"uppercase"}}>{subtitle}</div></div>
+        </div>
+        <div style={{display:"flex",gap:8,alignItems:"center"}}>
+          <SyncBadge syncing={syncStatus==="syncing"} synced={syncStatus==="synced"}/>
+          <button onClick={logout} style={{background:"rgba(255,255,255,0.05)",border:"1px solid rgba(255,255,255,0.07)",borderRadius:8,padding:"5px 10px",fontSize:12,color:"#6b7280",cursor:"pointer"}}>Sign Out</button>
+        </div>
+      </div>
+      {nav}
+      <div style={{paddingBottom:20}}>{content}</div>
+    </div>
+  );
+
+  // ── OWNER ──
+  if(user.role==="owner"){
+    const ownerTabs=[
+      {id:"overview",  label:"Overview",  icon:"🏠"},
+      {id:"route",     label:"Route",     icon:"🗺️"},
+      {id:"customers", label:"Customers", icon:"👤"},
+      {id:"profit",    label:"Profit",    icon:"💰"},
+      {id:"texts",     label:"Texts",     icon:"💬"},
+      {id:"techs",     label:"Techs",     icon:"👷"},
+      {id:"reports",   label:"Reports",   icon:"📊"},
+      {id:"settings",  label:"Settings",  icon:"⚙️"},
+    ];
+    const done=pools.filter(p=>p.status==="Completed"),over=pools.filter(p=>p.status==="Overdue");
+    const techs=users.filter(u=>u.role==="tech");
+
+    const tabContent={
+      overview:(
+        <div style={{padding:"16px"}}>
+          <div style={{fontSize:18,fontWeight:700,marginBottom:2}}>Good morning, {user.name} 👋</div>
+          <div style={{fontSize:13,color:"#4b5563",marginBottom:14}}>{todayStr()}</div>
+          <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,marginBottom:14}}>
+            {[["Pools",pools.length,"🏊","#3b82f6"],["Due Today",pools.filter(p=>p.status==="Due Today").length,"📅","#f5a623"],["Overdue",over.length,"⚠️","#ef4444"],["Done",done.length,"✓","#22c55e"]].map(([l,v,ic,c])=>(
+              <div key={l} style={{background:"#0d1626",borderRadius:14,padding:"14px",border:`1px solid ${c}22`}}><div style={{fontSize:20,marginBottom:4}}>{ic}</div><div style={{fontSize:24,fontWeight:800,color:c}}>{v}</div><div style={{fontSize:11,color:"#6b7280"}}>{l}</div></div>
+            ))}
+          </div>
+          {/* Revenue snapshot */}
+          <Card style={{marginBottom:14,background:"linear-gradient(135deg,rgba(34,197,94,0.08),rgba(59,130,246,0.05))"}}>
+            <div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+              <div><div style={{fontSize:12,color:"#6b7280",marginBottom:2}}>COLLECTED THIS MONTH</div><div style={{fontSize:22,fontWeight:800,color:"#22c55e"}}>{fmtMoney(invoices.filter(i=>i.status==="Paid").reduce((s,i)=>s+Number(i.amount||0),0))}</div></div>
+              <div style={{textAlign:"right"}}><div style={{fontSize:12,color:"#6b7280",marginBottom:2}}>PENDING</div><div style={{fontSize:18,fontWeight:700,color:"#f5a623"}}>{fmtMoney(invoices.filter(i=>i.status!=="Paid").reduce((s,i)=>s+Number(i.amount||0),0))}</div></div>
+            </div>
+            <button onClick={()=>setOwnerTab("profit")} style={{marginTop:10,width:"100%",background:"rgba(34,197,94,0.1)",border:"1px solid rgba(34,197,94,0.2)",borderRadius:10,padding:"8px",fontSize:12,fontWeight:600,color:"#22c55e",cursor:"pointer"}}>View Full Profit Tracker →</button>
+          </Card>
+          {over.length>0&&<div style={{background:"rgba(239,68,68,0.07)",border:"1px solid rgba(239,68,68,0.2)",borderRadius:12,padding:"12px 14px",marginBottom:14}}><div style={{fontSize:13,fontWeight:700,color:"#f87171",marginBottom:6}}>⚠️ Overdue</div>{over.map(p=><div key={p.id} onClick={()=>setSelPool(p)} style={{fontSize:13,color:"#fca5a5",cursor:"pointer",padding:"2px 0"}}>▸ {p.customer}</div>)}</div>}
+          <div style={{fontSize:12,fontWeight:700,color:"#6b7280",marginBottom:8,letterSpacing:1}}>ALL ACCOUNTS</div>
+          {pools.map(p=>(
+            <div key={p.id} onClick={()=>setSelPool(p)} style={{background:"#0d1626",borderRadius:13,padding:"13px 14px",marginBottom:8,border:"1px solid rgba(255,255,255,0.04)",cursor:"pointer",display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+              <div><div style={{fontWeight:600,fontSize:14}}>{p.customer}</div><div style={{fontSize:11,color:"#6b7280"}}>{p.type} · {users.find(u=>u.id===p.tech)?.name||p.tech} · {fmtMoney(p.monthlyRate)}/mo</div></div>
+              <Badge status={p.status}/>
+            </div>
+          ))}
+        </div>
+      ),
+      route:(
+        <>
+          <div style={{padding:"14px 16px 0",display:"flex",justifyContent:"flex-end"}}>
+            <button onClick={()=>optimize([...pools].sort((a,b)=>(a.order||99)-(b.order||99)))} disabled={optimizing} style={{background:optimizing?"#1f2937":"linear-gradient(135deg,#22c55e,#16a34a)",border:"none",borderRadius:10,padding:"8px 16px",fontSize:12,fontWeight:700,color:optimizing?"#6b7280":"#fff",cursor:optimizing?"not-allowed":"pointer"}}>
+              {optimizing?"⚙️ Optimizing...":"⚡ Optimize All"}
+            </button>
+          </div>
+          <RouteList pools={routeFilter==="all"?pools:pools.filter(p=>p.tech===routeFilter)} onReorder={re=>upPools([...pools.filter(p=>!re.find(r=>r.id===p.id)),...re])} onSelect={setSelPool} techFilter={routeFilter} setTechFilter={setRouteFilter} users={users}/>
+        </>
+      ),
+      customers:(
+        <div style={{padding:"16px"}}>
+          <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:14}}>
+            <div><div style={{fontSize:18,fontWeight:700}}>Customers</div><div style={{fontSize:13,color:"#4b5563"}}>{pools.length} accounts · {fmtMoney(pools.reduce((s,p)=>s+Number(p.monthlyRate||0),0))}/mo recurring</div></div>
+            <button onClick={()=>setAddCustomer(true)} style={{background:"linear-gradient(135deg,#3b82f6,#06b6d4)",border:"none",borderRadius:12,padding:"10px 16px",fontSize:13,fontWeight:700,color:"#fff",cursor:"pointer"}}>+ Add</button>
+          </div>
+          {pools.map(p=>(
+            <div key={p.id} style={{background:"#0d1626",borderRadius:13,padding:"13px 14px",marginBottom:8,border:"1px solid rgba(255,255,255,0.04)",display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+              <div onClick={()=>setSelPool(p)} style={{flex:1,cursor:"pointer"}}>
+                <div style={{fontWeight:600,fontSize:14}}>{p.customer}</div>
+                <div style={{fontSize:11,color:"#6b7280",marginTop:2}}>{p.phone} · {users.find(u=>u.id===p.tech)?.name||p.tech}</div>
+                <div style={{fontSize:11,color:"#6b7280"}}>{p.address.split(",")[0]} · {p.serviceDay||""}</div>
+                {p.monthlyRate&&<div style={{fontSize:12,color:"#22c55e",fontWeight:600,marginTop:2}}>{fmtMoney(p.monthlyRate)}/mo</div>}
+              </div>
+              <div style={{display:"flex",flexDirection:"column",alignItems:"flex-end",gap:6}}>
+                <Badge status={p.status}/>
+                <div style={{display:"flex",gap:6}}>
+                  <button onClick={()=>setAddCustomer(p)} style={{fontSize:11,background:"rgba(255,255,255,0.05)",border:"1px solid rgba(255,255,255,0.08)",borderRadius:7,padding:"3px 10px",color:"#9ca3af",cursor:"pointer"}}>Edit</button>
+                  <button onClick={()=>{ if(window.confirm(`Remove ${p.customer}?`)){const updated=pools.filter(x=>x.id!==p.id);upPools(updated);}}} style={{fontSize:11,background:"rgba(239,68,68,0.08)",border:"1px solid rgba(239,68,68,0.2)",borderRadius:7,padding:"3px 10px",color:"#ef4444",cursor:"pointer"}}>Delete</button>
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+      ),
+      profit:<ProfitTracker pools={pools} invoices={invoices} setInvoices={upInvoices} users={users}/>,
+      texts:(
+        <div style={{padding:"16px"}}>
+          <div style={{fontSize:18,fontWeight:700,marginBottom:4}}>💬 Texting</div>
+          <div style={{fontSize:13,color:"#4b5563",marginBottom:14}}>On My Way & Reminders</div>
+          {!twilio.sid&&<div style={{background:"rgba(239,68,68,0.08)",border:"1px solid rgba(239,68,68,0.3)",borderRadius:14,padding:"14px",marginBottom:14,display:"flex",gap:12,alignItems:"center"}}><span style={{fontSize:24}}>⚠️</span><div style={{flex:1}}><div style={{fontSize:13,fontWeight:700,color:"#f87171"}}>Twilio not set up</div><div style={{fontSize:12,color:"#9ca3af"}}>Go to Settings tab</div></div><button onClick={()=>setOwnerTab("settings")} style={{background:"linear-gradient(135deg,#f5a623,#e07b00)",border:"none",borderRadius:10,padding:"8px 14px",fontSize:12,fontWeight:700,color:"#fff",cursor:"pointer"}}>Setup</button></div>}
+          <Card style={{marginBottom:14,border:"1px solid rgba(245,166,35,0.25)"}}>
+            <div style={{fontSize:14,fontWeight:700,color:"#f5a623",marginBottom:4}}>📅 2-Day Reminders</div>
+            <div style={{fontSize:12,color:"#6b7280",marginBottom:10}}>Auto-sent daily at app open · send manually below</div>
+            <div style={{display:"flex",gap:6,flexWrap:"wrap",marginBottom:12}}>
+              {pools.filter(p=>p.status!=="Completed").map(p=>(
+                <span key={p.id} style={{fontSize:11,background:remindersSent[p.id]?"rgba(34,197,94,0.15)":"rgba(255,255,255,0.05)",color:remindersSent[p.id]?"#22c55e":"#9ca3af",border:`1px solid ${remindersSent[p.id]?"rgba(34,197,94,0.3)":"rgba(255,255,255,0.08)"}`,borderRadius:20,padding:"4px 12px",fontWeight:600}}>
+                  {remindersSent[p.id]?"✓ ":""}{p.customer.split(" ")[0]}
+                </span>
+              ))}
+            </div>
+            <button onClick={()=>pools.filter(p=>p.status!=="Completed").forEach(p=>doSend(p,"reminder"))} style={{width:"100%",background:"linear-gradient(135deg,#f5a623,#e07b00)",border:"none",borderRadius:12,padding:"13px",fontSize:14,fontWeight:700,color:"#fff",cursor:"pointer"}}>📨 Send All Reminders Now</button>
+          </Card>
+          <div style={{fontSize:12,fontWeight:700,color:"#6b7280",marginBottom:8,letterSpacing:1}}>🚗 ON MY WAY</div>
+          {pools.map(p=>(
+            <div key={p.id} style={{background:"#0d1626",borderRadius:13,padding:"12px 14px",marginBottom:8,border:"1px solid rgba(255,255,255,0.04)",display:"flex",alignItems:"center",gap:10}}>
+              <div style={{flex:1}}><div style={{fontWeight:600,fontSize:14}}>{p.customer}</div><div style={{fontSize:11,color:"#6b7280"}}>{p.phone}</div></div>
+              <button onClick={()=>doSend(p,"onmyway")} disabled={!!sending[`${p.id}_onmyway`]} style={{background:sending[`${p.id}_onmyway`]?"#1f2937":"linear-gradient(135deg,#f5a623,#e07b00)",border:"none",borderRadius:10,padding:"9px 14px",fontSize:12,fontWeight:700,color:sending[`${p.id}_onmyway`]?"#6b7280":"#fff",cursor:"pointer",whiteSpace:"nowrap"}}>
+                {sending[`${p.id}_onmyway`]?"⏳":"🚗 Send"}
+              </button>
+            </div>
+          ))}
+          <div style={{fontSize:12,fontWeight:700,color:"#6b7280",marginBottom:8,marginTop:18,letterSpacing:1}}>📋 SMS LOG ({smsLog.length})</div>
+          {smsLog.length===0&&<div style={{background:"#0d1626",borderRadius:12,padding:"20px",textAlign:"center",color:"#374151",fontSize:13}}>No messages sent yet</div>}
+          {[...smsLog].reverse().slice(0,20).map((e,i)=>(
+            <div key={i} style={{background:"#0d1626",borderRadius:12,padding:"12px 14px",marginBottom:8,border:`1px solid ${e.status==="sent"?"rgba(34,197,94,0.12)":"rgba(239,68,68,0.2)"}`}}>
+              <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:5}}>
+                <div><div style={{fontWeight:600,fontSize:13}}>{e.customer}</div><div style={{fontSize:11,color:"#6b7280"}}>{e.time} · {e.type==="onmyway"?"🚗":e.type==="completion"?"✅":"📅"}</div></div>
+                <div style={{background:e.status==="sent"?"rgba(34,197,94,0.12)":"rgba(239,68,68,0.12)",color:e.status==="sent"?"#22c55e":"#ef4444",fontSize:10,fontWeight:700,padding:"3px 8px",borderRadius:20}}>{e.status==="sent"?"✓ Sent":"✗ Failed"}</div>
+              </div>
+              <div style={{fontSize:12,color:"#9ca3af",background:"#111827",borderRadius:8,padding:"7px 10px",lineHeight:1.5}}>{e.body}</div>
+            </div>
+          ))}
+        </div>
+      ),
+      techs:(
+        <div style={{padding:"16px"}}>
+          <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:14}}>
+            <div style={{fontSize:18,fontWeight:700}}>Technicians</div>
+            <button onClick={()=>setShowUsers(true)} style={{background:"rgba(59,130,246,0.1)",border:"1px solid rgba(59,130,246,0.2)",borderRadius:10,padding:"8px 14px",fontSize:12,fontWeight:600,color:"#60a5fa",cursor:"pointer"}}>Manage Users</button>
+          </div>
+          {techs.map(t=>{
+            const tp=pools.filter(p=>p.tech===t.id);
+            const techRevenue=invoices.filter(i=>i.status==="Paid"&&tp.find(p=>p.customer===i.customer)).reduce((s,i)=>s+Number(i.amount||0),0);
+            return(
+              <div key={t.id} style={{background:"#0d1626",borderRadius:16,padding:"18px",marginBottom:14,border:"1px solid rgba(255,255,255,0.06)"}}>
+                <div style={{display:"flex",alignItems:"center",gap:12,marginBottom:14}}>
+                  <div style={{width:46,height:46,borderRadius:50,background:"linear-gradient(135deg,#3b82f6,#8b5cf6)",display:"flex",alignItems:"center",justifyContent:"center",fontSize:13,fontWeight:800,color:"#fff"}}>{t.name.split(" ").map(n=>n[0]).join("").slice(0,2)}</div>
+                  <div style={{flex:1}}><div style={{fontSize:16,fontWeight:700}}>{t.name}</div><div style={{fontSize:12,color:"#6b7280"}}>Field Technician</div></div>
+                  <div style={{textAlign:"right"}}><div style={{fontSize:14,fontWeight:700,color:"#22c55e"}}>{fmtMoney(techRevenue)}</div><div style={{fontSize:10,color:"#6b7280"}}>collected</div></div>
+                </div>
+                <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:8,marginBottom:12}}>
+                  {[["Assigned",tp.length,"#60a5fa"],["Done",tp.filter(p=>p.status==="Completed").length,"#22c55e"],["Alerts",tp.filter(p=>cStat(p.chlorine,"chlorine")!=="ok"||cStat(p.ph,"ph")!=="ok").length,"#f5a623"]].map(([l,v,c])=>(
+                    <div key={l} style={{background:"#111827",borderRadius:10,padding:"10px 8px",textAlign:"center"}}><div style={{fontSize:20,fontWeight:800,color:c}}>{v}</div><div style={{fontSize:10,color:"#6b7280"}}>{l}</div></div>
+                  ))}
+                </div>
+                {tp.map(p=><div key={p.id} onClick={()=>setSelPool(p)} style={{display:"flex",justifyContent:"space-between",padding:"8px 0",borderBottom:"1px solid rgba(255,255,255,0.04)",cursor:"pointer"}}><span style={{fontSize:13,color:"#d1d5db"}}>{p.customer}</span><Badge status={p.status}/></div>)}
+              </div>
+            );
+          })}
+        </div>
+      ),
+      reports:(
+        <div style={{padding:"16px"}}>
+          <div style={{fontSize:18,fontWeight:700,marginBottom:14}}>Reports</div>
+          {[
+            {title:"Weekly Summary",   sub:`${done.length}/${pools.length} complete`,                                                       icon:"📋",color:"#3b82f6"},
+            {title:"Chemical Log",     sub:`${pools.filter(p=>cStat(p.chlorine,"chlorine")!=="ok"||cStat(p.ph,"ph")!=="ok").length} alerts`,icon:"⚗️",color:"#8b5cf6"},
+            {title:"Equipment Issues", sub:`${EQ_ISSUES.filter(i=>i.status==="open").length} open tickets`,                                icon:"🔧",color:"#f5a623"},
+            {title:"Profit & Invoices",sub:`${fmtMoney(invoices.filter(i=>i.status==="Paid").reduce((s,i)=>s+Number(i.amount||0),0))} collected`, icon:"💰",color:"#22c55e"},
+            {title:"Filter Tracker",   sub:`${pools.filter(p=>p.filterVisits>=filterEvery).length} due now`,                               icon:"🔵",color:"#60a5fa"},
+            {title:"Photo Log",        sub:`${pools.reduce((a,p)=>a+(p.photos?.length||0)+(p.afterPhotos?.length||0),0)} photos`,          icon:"📷",color:"#ec4899"},
+            {title:"Water Quality",    sub:"All pool chemistry",                                                                           icon:"〜",color:"#06b6d4"},
+          ].map(r=>(
+            <div key={r.title} style={{background:"#0d1626",borderRadius:14,padding:"14px 16px",marginBottom:10,border:"1px solid rgba(255,255,255,0.04)",cursor:"pointer",display:"flex",alignItems:"center",gap:14}} onClick={()=>r.title==="Profit & Invoices"?setOwnerTab("profit"):null}>
+              <div style={{width:44,height:44,borderRadius:12,background:`${r.color}18`,display:"flex",alignItems:"center",justifyContent:"center",fontSize:20}}>{r.icon}</div>
+              <div style={{flex:1}}><div style={{fontWeight:600,fontSize:14}}>{r.title}</div><div style={{fontSize:12,color:"#6b7280",marginTop:2}}>{r.sub}</div></div>
+              <div style={{color:"#374151",fontSize:20}}>›</div>
+            </div>
+          ))}
+        </div>
+      ),
+      settings:(
+        <div style={{padding:"16px"}}>
+          <div style={{fontSize:18,fontWeight:700,marginBottom:4}}>⚙️ Settings</div>
+          <div style={{fontSize:13,color:"#4b5563",marginBottom:16}}>All data syncs to Google Sheets automatically</div>
+          <Card style={{marginBottom:14}}>
+            <div style={{fontSize:13,fontWeight:700,marginBottom:12}}>📱 Twilio SMS</div>
+            {twilio.sid&&<div style={{fontSize:12,color:"#22c55e",marginBottom:10}}>✓ Configured · {twilio.from}</div>}
+            {[["ACCOUNT SID","sid","AC...","text"],["AUTH TOKEN","token","Your auth token","password"],["FROM NUMBER","from","+14805715896","text"]].map(([l,k,ph,type])=>(
+              <div key={k} style={{marginBottom:12}}>
+                <div style={{fontSize:11,color:"#6b7280",marginBottom:4,letterSpacing:1}}>{l}</div>
+                <input type={type} value={twilio[k]} onChange={e=>setTwilio(v=>({...v,[k]:e.target.value}))} placeholder={ph} style={{width:"100%",background:"#111827",border:"1px solid rgba(255,255,255,0.08)",borderRadius:9,padding:"10px 13px",fontSize:13,color:"#e2e8f0",outline:"none",boxSizing:"border-box",fontFamily:"monospace"}}/>
+              </div>
+            ))}
+            <button onClick={()=>saveTwilio(twilio)} style={{width:"100%",background:"linear-gradient(135deg,#3b82f6,#06b6d4)",border:"none",borderRadius:12,padding:"12px",fontSize:14,fontWeight:700,color:"#fff",cursor:"pointer"}}>Save to Google Sheets</button>
+            {twilioSaved&&<div style={{marginTop:10,background:"rgba(34,197,94,0.1)",border:"1px solid rgba(34,197,94,0.3)",borderRadius:10,padding:"10px",textAlign:"center",color:"#22c55e",fontWeight:700,fontSize:13}}>✓ Saved to Google Sheets!</div>}
+          </Card>
+          <Card style={{marginBottom:14}}>
+            <div style={{fontSize:13,fontWeight:700,marginBottom:4}}>🔵 Filter Cleaning Schedule</div>
+            <div style={{fontSize:12,color:"#6b7280",marginBottom:12}}>Visits between filter cleanings</div>
+            <div style={{display:"flex",alignItems:"center",gap:12,marginBottom:12}}>
+              <input type="number" value={filterEvery} onChange={e=>setFilterEvery(parseInt(e.target.value)||20)} min="1" max="100" style={{width:80,background:"#111827",border:"1px solid rgba(255,255,255,0.08)",borderRadius:9,padding:"10px 13px",fontSize:18,fontWeight:700,color:"#f5a623",outline:"none",textAlign:"center",boxSizing:"border-box"}}/>
+              <div style={{fontSize:14,color:"#d1d5db"}}>visits between cleanings</div>
+            </div>
+            <button onClick={()=>{lsSet("db_filterEvery",filterEvery);DB.setConfig("filterEvery",filterEvery);setFilterSaved(true);setTimeout(()=>setFilterSaved(false),2000);}} style={{width:"100%",background:"linear-gradient(135deg,#f5a623,#e07b00)",border:"none",borderRadius:12,padding:"12px",fontSize:14,fontWeight:700,color:"#fff",cursor:"pointer"}}>Save Schedule</button>
+            {filterSaved&&<div style={{marginTop:10,background:"rgba(34,197,94,0.1)",border:"1px solid rgba(34,197,94,0.3)",borderRadius:10,padding:"10px",textAlign:"center",color:"#22c55e",fontWeight:700,fontSize:13}}>✓ Saved!</div>}
+          </Card>
+          <Card style={{marginBottom:14}}>
+            <div style={{fontSize:13,fontWeight:700,marginBottom:4}}>👥 User Management</div>
+            <div style={{fontSize:12,color:"#6b7280",marginBottom:12}}>{users.length} users — stays signed in until logout</div>
+            <button onClick={()=>setShowUsers(true)} style={{width:"100%",background:"rgba(59,130,246,0.1)",border:"1px solid rgba(59,130,246,0.2)",borderRadius:12,padding:"12px",fontSize:14,fontWeight:600,color:"#60a5fa",cursor:"pointer"}}>Manage Users →</button>
+          </Card>
+        </div>
+      ),
+    };
+
+    return <AppShell subtitle="Owner Dashboard" nav={<TopNav tabs={ownerTabs} active={ownerTab} onChange={setOwnerTab}/>} content={tabContent[ownerTab]}/>;
+  }
+
+  // ── TECH ──
+  const myPools=pools.filter(p=>p.tech===user.id).sort((a,b)=>(a.order||99)-(b.order||99));
+  const remaining=myPools.filter(p=>p.status!=="Completed");
+  const doneMy=myPools.filter(p=>p.status==="Completed");
+  const next=remaining[0];
+  const techTabs=[{id:"day",label:"My Day",icon:"⬡"},{id:"route",label:"Route",icon:"🗺️"},{id:"customers",label:"Customers",icon:"👤"},{id:"done",label:"Done",icon:"✓"}];
+
+  const techContent={
+    day:(
+      <div style={{padding:"16px"}}>
+        <div style={{fontSize:18,fontWeight:700,marginBottom:2}}>Hey {user.name.split(" ")[0]} 👋</div>
+        <div style={{fontSize:13,color:"#4b5563",marginBottom:14}}>{remaining.length} stops remaining · {todayStr()}</div>
+        <Card style={{marginBottom:14}}>
+          <div style={{display:"flex",justifyContent:"space-between",marginBottom:8}}><span style={{fontSize:13,color:"#9ca3af"}}>Progress</span><span style={{fontSize:14,fontWeight:700,color:"#22c55e"}}>{doneMy.length}/{myPools.length}</span></div>
+          <div style={{background:"#111827",borderRadius:99,height:10,overflow:"hidden"}}><div style={{background:"linear-gradient(90deg,#22c55e,#06b6d4)",width:`${myPools.length?(doneMy.length/myPools.length)*100:0}%`,height:"100%",borderRadius:99,transition:"width .6s"}}/></div>
+        </Card>
+        <button onClick={()=>optimize(myPools)} disabled={optimizing} style={{width:"100%",background:optimizing?"#0d1626":"linear-gradient(135deg,#1f2937,#111827)",border:"1px solid rgba(59,130,246,0.2)",borderRadius:12,padding:"11px",fontSize:13,fontWeight:700,color:optimizing?"#6b7280":"#60a5fa",cursor:"pointer",marginBottom:14}}>
+          {optimizing?"⚙️ Optimizing...":"⚡ Optimize My Route"}
+        </button>
+        {next&&(
+          <>
+            <div style={{fontSize:11,fontWeight:700,color:"#6b7280",marginBottom:8,letterSpacing:1}}>NEXT STOP</div>
+            <div style={{background:"linear-gradient(135deg,#0d1f3c,#0a1628)",borderRadius:16,padding:"16px",marginBottom:14,border:"1px solid rgba(59,130,246,0.25)"}}>
+              <div style={{fontWeight:700,fontSize:16,marginBottom:4}}>{next.customer}</div>
+              <button onClick={()=>openMaps(next.address)} style={{fontSize:13,color:"#60a5fa",background:"none",border:"none",cursor:"pointer",padding:0,textDecoration:"underline",marginBottom:8,display:"block"}}>📍 {next.address.split(",")[0]}</button>
+              {next.filterVisits>=filterEvery&&<div style={{fontSize:12,color:"#ef4444",background:"rgba(239,68,68,0.08)",borderRadius:8,padding:"6px 10px",marginBottom:10}}>🔵 Filter clean due this visit</div>}
+              <div style={{display:"flex",gap:8}}>
+                <button onClick={()=>doSend(next,"onmyway")} disabled={!!sending[`${next.id}_onmyway`]} style={{flex:1,background:sending[`${next.id}_onmyway`]?"#1f2937":"linear-gradient(135deg,#f5a623,#e07b00)",border:"none",borderRadius:10,padding:"11px",fontSize:13,fontWeight:700,color:sending[`${next.id}_onmyway`]?"#6b7280":"#fff",cursor:"pointer"}}>{sending[`${next.id}_onmyway`]?"⏳":"🚗 On My Way"}</button>
+                <button onClick={()=>setVisitPool(next)} style={{flex:1,background:"linear-gradient(135deg,#22c55e,#16a34a)",border:"none",borderRadius:10,padding:"11px",fontSize:13,fontWeight:700,color:"#fff",cursor:"pointer"}}>▶ Start Visit</button>
+              </div>
+            </div>
+          </>
+        )}
+        <div style={{fontSize:11,fontWeight:700,color:"#6b7280",marginBottom:8,letterSpacing:1}}>ALL MY STOPS</div>
+        {myPools.map(p=>(
+          <div key={p.id} onClick={()=>setSelPool(p)} style={{background:"#0d1626",borderRadius:13,padding:"12px 14px",marginBottom:8,border:"1px solid rgba(255,255,255,0.04)",cursor:"pointer",display:"flex",gap:10,alignItems:"center"}}>
+            <div style={{width:26,height:26,borderRadius:50,background:p.status==="Completed"?"#22c55e":"#1f2937",display:"flex",alignItems:"center",justifyContent:"center",fontSize:11,fontWeight:700,color:p.status==="Completed"?"#fff":"#6b7280",flexShrink:0}}>{p.status==="Completed"?"✓":p.order}</div>
+            <div style={{flex:1}}><div style={{fontWeight:600,fontSize:14}}>{p.customer}</div><div style={{fontSize:11,color:"#6b7280"}}>{p.address.split(",")[0]}</div></div>
+            <div style={{display:"flex",flexDirection:"column",alignItems:"flex-end",gap:3}}><Badge status={p.status}/>{p.filterVisits>=filterEvery&&<span style={{fontSize:9,color:"#ef4444"}}>🔵 filter due</span>}</div>
+          </div>
+        ))}
+      </div>
+    ),
+    route:(
+      <>
+        <div style={{padding:"14px 16px 0",display:"flex",justifyContent:"flex-end"}}>
+          <button onClick={()=>optimize(myPools)} disabled={optimizing} style={{background:optimizing?"#1f2937":"linear-gradient(135deg,#22c55e,#16a34a)",border:"none",borderRadius:10,padding:"8px 14px",fontSize:12,fontWeight:700,color:optimizing?"#6b7280":"#fff",cursor:"pointer"}}>{optimizing?"⚙️...":"⚡ Optimize"}</button>
+        </div>
+        <RouteList pools={myPools} onReorder={re=>upPools([...pools.filter(p=>!re.find(r=>r.id===p.id)),...re])} onSelect={setSelPool} techFilter={user.id} setTechFilter={()=>{}} users={users} showFilter={false}/>
+      </>
+    ),
+    customers:(
+      <div style={{padding:"16px"}}>
+        <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:14}}>
+          <div><div style={{fontSize:18,fontWeight:700}}>Customers</div><div style={{fontSize:13,color:"#4b5563"}}>Add or view accounts</div></div>
+          <button onClick={()=>setAddCustomer(true)} style={{background:"linear-gradient(135deg,#3b82f6,#06b6d4)",border:"none",borderRadius:12,padding:"10px 16px",fontSize:13,fontWeight:700,color:"#fff",cursor:"pointer"}}>+ Add</button>
+        </div>
+        {pools.map(p=>(
+          <div key={p.id} onClick={()=>setSelPool(p)} style={{background:"#0d1626",borderRadius:13,padding:"13px 14px",marginBottom:8,border:"1px solid rgba(255,255,255,0.04)",cursor:"pointer",display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+            <div><div style={{fontWeight:600,fontSize:14}}>{p.customer}</div><div style={{fontSize:11,color:"#6b7280"}}>{p.address.split(",")[0]} · {p.type}</div></div>
+            <Badge status={p.status}/>
+          </div>
+        ))}
+      </div>
+    ),
+    done:(
+      <div style={{padding:"16px"}}>
+        <div style={{fontSize:18,fontWeight:700,marginBottom:4}}>Completed Today</div>
+        <div style={{fontSize:13,color:"#4b5563",marginBottom:14}}>{doneMy.length} stops done</div>
+        {doneMy.length===0&&<Card><div style={{textAlign:"center",color:"#374151",fontSize:14,padding:"20px 0"}}>No completed stops yet</div></Card>}
+        {doneMy.map(p=>(
+          <div key={p.id} onClick={()=>setSelPool(p)} style={{background:"#0d1626",borderRadius:13,padding:"14px",marginBottom:8,border:"1px solid rgba(34,197,94,0.1)",cursor:"pointer",display:"flex",justifyContent:"space-between",alignItems:"flex-start"}}>
+            <div>
+              <div style={{fontWeight:600,fontSize:14}}>{p.customer}</div>
+              <div style={{fontSize:12,color:"#6b7280"}}>{p.address.split(",")[0]}</div>
+              <div style={{fontSize:12,color:"#22c55e",marginTop:4}}>✓ {p.lastService}{p.lastDuration?` · ${fmtTime(p.lastDuration)}`:""}</div>
+              {(p.photos?.length>0||p.afterPhotos?.length>0)&&<div style={{fontSize:11,color:"#6b7280"}}>📷 {p.photos?.length||0} before · {p.afterPhotos?.length||0} after</div>}
+            </div>
+            <Badge status={p.status}/>
+          </div>
+        ))}
+      </div>
+    ),
+  };
+
+  return <AppShell subtitle="Technician" nav={<TopNav tabs={techTabs} active={techTab} onChange={setTechTab}/>} content={techContent[techTab]}/>;
+}
+
+ReactDOM.createRoot(document.getElementById('root')).render(React.createElement(DesertBloom));
+  </script>
+</body>
+</html>
