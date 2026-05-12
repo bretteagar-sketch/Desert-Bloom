@@ -306,8 +306,22 @@ function PoolVolumeCalc() {
       <Card style={{marginBottom:12}}>
         <div style={{fontSize:13,fontWeight:700,color:"#94a3b8",marginBottom:12}}>📐 Pool Size</div>
         <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12}}>
-          {numFld("LENGTH","ft","",length,setLength,"20","e.g. 32")}
-          {numFld("WIDTH","ft","",width,setWidth,"","e.g. 16")}
+          <div>
+            <div style={{fontSize:11,color:"#6b7280",marginBottom:4,letterSpacing:1}}>LENGTH</div>
+            <div style={{position:"relative"}}>
+              <input type="number" inputMode="decimal" value={length} onChange={e=>{setLength(e.target.value);setResult(null);}} placeholder="32"
+                style={{width:"100%",background:"#111827",border:"1px solid rgba(255,255,255,0.08)",borderRadius:9,padding:"11px 44px 11px 13px",fontSize:16,color:"#e2e8f0",outline:"none",boxSizing:"border-box"}}/>
+              <span style={{position:"absolute",right:13,top:"50%",transform:"translateY(-50%)",fontSize:12,color:"#374151",fontWeight:600}}>ft</span>
+            </div>
+          </div>
+          <div>
+            <div style={{fontSize:11,color:"#6b7280",marginBottom:4,letterSpacing:1}}>WIDTH</div>
+            <div style={{position:"relative"}}>
+              <input type="number" inputMode="decimal" value={width} onChange={e=>{setWidth(e.target.value);setResult(null);}} placeholder="16"
+                style={{width:"100%",background:"#111827",border:"1px solid rgba(255,255,255,0.08)",borderRadius:9,padding:"11px 44px 11px 13px",fontSize:16,color:"#e2e8f0",outline:"none",boxSizing:"border-box"}}/>
+              <span style={{position:"absolute",right:13,top:"50%",transform:"translateY(-50%)",fontSize:12,color:"#374151",fontWeight:600}}>ft</span>
+            </div>
+          </div>
         </div>
       </Card>
 
