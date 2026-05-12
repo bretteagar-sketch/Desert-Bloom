@@ -830,7 +830,7 @@ function DesertBloom(){
     DB.getAll().then(data=>{
       if(data){
         if(data.config){const tw=data.config.find(r=>r.Key==="twilio");if(tw)try{setTwilio(JSON.parse(tw.Value));}catch{}const fe=data.config.find(r=>r.Key==="filterEvery");if(fe)try{setFilterEvery(JSON.parse(fe.Value));}catch{}}
-        if(data.pools&&data.pools.length){try{const p=data.pools.map(r=>r["JSON Data"]?JSON.parse(r["JSON Data"]):r).filter(Boolean);if(p.length)setPools(p);}catch{}}
+        if(data.pools&&data.pools.length){try{const p=data.pools.map(r=>r["JSON Data"]?JSON.parse(r["JSON Data"]):r).filter(r=>r&&r.customer);if(p.length)setPools(p);}catch{}}
         if(data.users&&data.users.length){try{const u=data.users.map(r=>({id:r.ID,name:r.Name,role:r.Role,password:r.Password,phone:r.Phone})).filter(u=>u.id&&u.name);if(u.length)setUsers(u);}catch{}}
         if(data.invoices&&data.invoices.length){try{const inv=data.invoices.map(r=>({id:r.ID,customer:r.Customer,amount:parseFloat(r.Amount)||0,serviceDate:r["Service Date"],status:r.Status,paidDate:r["Paid Date"]||"",notes:r.Notes||""})).filter(i=>i.customer);if(inv.length)setInvoices(inv);}catch{}}
       }
@@ -947,7 +947,7 @@ function DesertBloom(){
     const tabContent={
       overview:(
         <div style={{padding:"16px"}}>
-          <div style={{fontSize:18,fontWeight:700,marginBottom:2}}>Good morning, {user.name} 👋</div>
+          <div style={{fontSize:18,fontWeight:700,marginBottom:2}}>Good morning, {user.name||"Brett"} 👋</div>
           <div style={{fontSize:13,color:"#4b5563",marginBottom:14}}>{todayStr()}</div>
           <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,marginBottom:14}}>
             {[["Pools",pools.length,"🏊","#3b82f6"],["Due Today",pools.filter(p=>p.status==="Due Today").length,"📅","#f5a623"],["Overdue",over.length,"⚠️","#ef4444"],["Done",done.length,"✓","#22c55e"]].map(([l,v,ic,c])=>(
@@ -1042,7 +1042,7 @@ function DesertBloom(){
               <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:8,marginBottom:12}}>
                 {[["Assigned",tp.length,"#60a5fa"],["Done",tp.filter(p=>p.status==="Completed").length,"#22c55e"],["Alerts",tp.filter(p=>cStat(p.chlorine,"chlorine")!=="ok"||cStat(p.ph,"ph")!=="ok").length,"#f5a623"]].map(([l,v,c])=>(<div key={l} style={{background:"#111827",borderRadius:10,padding:"10px 8px",textAlign:"center"}}><div style={{fontSize:20,fontWeight:800,color:c}}>{v}</div><div style={{fontSize:10,color:"#6b7280"}}>{l}</div></div>))}
               </div>
-              {tp.map(p=><div key={p.id} onClick={()=>setSelPool(p)} style={{display:"flex",justifyContent:"space-between",padding:"8px 0",borderBottom:"1px solid rgba(255,255,255,0.04)",cursor:"pointer"}}><span style={{fontSize:13,color:"#d1d5db"}}>{p.customer}</span><Badge status={p.status}/></div>)}
+              {tp.map(p=><div key={p.id} onClick={()=>setSelPool(p)} style={{display:"flex",justifyContent:"space-between",padding:"8px 0",borderBottom:"1px solid rgba(255,255,255,0.04)",cursor:"pointer"}}><span style={{fontSize:13,color:"#d1d5db"}}>{p.customer||""}</span><Badge status={p.status}/></div>)}
             </div>);
           })}
         </div>
@@ -1096,7 +1096,7 @@ function DesertBloom(){
   const techContent={
     day:(
       <div style={{padding:"16px"}}>
-        <div style={{fontSize:18,fontWeight:700,marginBottom:2}}>Hey {user.name.split(" ")[0]} 👋</div>
+        <div style={{fontSize:18,fontWeight:700,marginBottom:2}}>Hey {(user.name||"Tech").split(" ")[0]} 👋</div>
         <div style={{fontSize:13,color:"#4b5563",marginBottom:14}}>{remaining.length} stops remaining · {todayStr()}</div>
         <Card style={{marginBottom:14}}>
           <div style={{display:"flex",justifyContent:"space-between",marginBottom:8}}><span style={{fontSize:13,color:"#9ca3af"}}>Progress</span><span style={{fontSize:14,fontWeight:700,color:"#22c55e"}}>{doneMy.length}/{myPools.length}</span></div>
