@@ -419,7 +419,7 @@ function ServiceVisit({pool,filterEvery,twilio,currentUser,onComplete,onBack,onL
     const updated={...pool,ph,chlorine:cl,alkalinity:alk,calcium:cal,notes:chem.notes||pool.notes,status:"Completed",lastService:todayStr(),photos:[...pool.photos,...beforePhotos],afterPhotos:[...afterPhotos],visits:pool.visits+1,filterVisits:filterDone?0:pool.filterVisits+1,lastDuration:elapsed};
     onLogVisit({customer:pool.customer,tech:currentUser.name,duration:elapsed,ph,chlorine:cl,alkalinity:alk,calcium:cal,notes:chem.notes,filterCleaned:filterDone,beforePhotos:beforePhotos.length,afterPhotos:afterPhotos.length});
     if(twilio?.sid&&pool.phone){
-      const body=`Hi ${pool.customer.split(" ")[0]}! ✅ Your Desert Bloom pool service is complete!\n\n💧 Chemistry:\n• pH: ${ph}\n• Chlorine: ${cl} ppm\n• Alkalinity: ${alk} ppm\n\nDuration: ${fmtTime(elapsed)}\n🌸 — Desert Bloom`;
+      const body=`Hi ${pool.customer.split(" ")[0]}! ✅ Your Desert Bloom pool service is complete!\n\n💧 Chemistry:\n• pH: ${ph}\n• Chlorine: ${cl} ppm\n• Alkalinity: ${alk} ppm\n\nDuration: ${fmtTime(elapsed)}\n🌵 — Desert Bloom`;
       try{ await sendSMS(pool.phone,body,twilio); }catch{}
     }
     setFinishing(false);onComplete(updated);setStep("done");
@@ -843,7 +843,7 @@ function DesertBloom(){
     const lastCheck=lsGet("db_lastReminder","");const todayKey=new Date().toDateString();
     if(lastCheck===todayKey) return;lsSet("db_lastReminder",todayKey);
     pools.filter(p=>p.status==="Due Today"||p.status==="Scheduled").forEach(pool=>{
-      const first=pool.customer.split(" ")[0];const body=`Hi ${first}! Just a reminder your Desert Bloom pool service is coming up soon. 🌸 — Desert Bloom`;
+      const first=pool.customer.split(" ")[0];const body=`Hi ${first}! Just a reminder your Desert Bloom pool service is coming up soon. 🌵 — Desert Bloom`;
       sendSMS(pool.phone,body,twilio).then(()=>{const entry={customer:pool.customer,phone:pool.phone,body,type:"reminder",status:"sent",time:new Date().toLocaleTimeString()};setSmsLog(l=>[...l,entry]);DB.append("smslog",entry);}).catch(()=>{});
     });
   },[twilio.sid,loading]);
@@ -858,7 +858,7 @@ function DesertBloom(){
     const key=`${pool.id}_${type}`;
     if(!twilio.sid||!twilio.token){alert("⚠️ Set up Twilio in Settings first");return;}
     const first=pool.customer.split(" ")[0];
-    const body=type==="onmyway"?`Hi ${first}! Your Desert Bloom pool tech is on the way! 🌸 Thanks!`:`Hi ${first}! Reminder: your Desert Bloom pool service is coming up soon. 🌸 — Desert Bloom`;
+    const body=type==="onmyway"?`Hi ${first}! Your Desert Bloom pool tech is on the way! 🌵 Thanks!`:`Hi ${first}! Reminder: your Desert Bloom pool service is coming up soon. 🌵 — Desert Bloom`;
     setSending(s=>({...s,[key]:true}));
     try{
       await sendSMS(pool.phone,body,twilio);
@@ -881,7 +881,7 @@ function DesertBloom(){
 
   if(loading) return(
     <div style={{fontFamily:"sans-serif",background:"#060d1a",minHeight:"100vh",display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",color:"#e2e8f0"}}>
-      <div style={{fontSize:52,marginBottom:16}}>🌸</div>
+      <div style={{fontSize:52,marginBottom:16}}>🌵</div>
       <div style={{fontSize:18,fontWeight:700,marginBottom:8}}>Desert Bloom</div>
       <div style={{fontSize:13,color:"#6b7280"}}>Loading from Google Sheets...</div>
     </div>
@@ -890,7 +890,7 @@ function DesertBloom(){
   if(!user) return(
     <div style={{fontFamily:"sans-serif",background:"linear-gradient(160deg,#060d1a,#0a1628)",minHeight:"100vh",display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",padding:20}}>
       <div style={{textAlign:"center",marginBottom:28}}>
-        <div style={{fontSize:52,marginBottom:8}}>🌸</div>
+        <div style={{fontSize:52,marginBottom:8}}>🌵</div>
         <div style={{fontSize:26,fontWeight:800,color:"#f0f9ff",letterSpacing:"-0.5px"}}>Desert Bloom</div>
         <div style={{fontSize:11,color:"#374151",marginTop:4,letterSpacing:3,textTransform:"uppercase"}}>Pool Service</div>
       </div>
@@ -916,7 +916,7 @@ function DesertBloom(){
     <div style={{fontFamily:"sans-serif",background:"#060d1a",minHeight:"100vh",color:"#e2e8f0"}}>
       <div style={{background:"linear-gradient(135deg,#080f1e,#0d1f3c)",borderBottom:"1px solid rgba(59,130,246,0.15)",padding:"13px 16px",display:"flex",alignItems:"center",justifyContent:"space-between"}}>
         <div style={{display:"flex",alignItems:"center",gap:10}}>
-          <div style={{width:34,height:34,borderRadius:10,background:"linear-gradient(135deg,#f97316,#ec4899)",display:"flex",alignItems:"center",justifyContent:"center",fontSize:18}}>🌸</div>
+          <div style={{width:34,height:34,borderRadius:10,background:"linear-gradient(135deg,#f97316,#ec4899)",display:"flex",alignItems:"center",justifyContent:"center",fontSize:18}}>🌵</div>
           <div><div style={{fontSize:16,fontWeight:800,color:"#fff"}}>Desert Bloom</div><div style={{fontSize:10,color:"#6b7280",letterSpacing:1,textTransform:"uppercase"}}>{subtitle}</div></div>
         </div>
         <div style={{display:"flex",gap:8,alignItems:"center"}}>
