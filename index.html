@@ -56,7 +56,7 @@ const EQ_ISSUES = [
   { id:5,poolId:4,customer:"Tony & Rita Espinoza",equipment:"Cartridge Filter",issue:"Minor tear in end cap. Monitor for 2 visits.",          severity:"low",   reported:"Apr 10",status:"resolved"},
 ];
 
-const CR = { ph:[7.2,7.6], chlorine:[1.0,3.0], alkalinity:[80,120], calcium:[200,400] };
+const CR = { ph:[7.2,7.6], chlorine:[3.0,5.0], alkalinity:[80,120], calcium:[200,400] };
 const cStat = (v,t)=>{ const r=CR[t]; if(!r)return"ok"; if(v<r[0])return"low"; if(v>r[1])return"high"; return"ok"; };
 const openMaps = (a)=>window.open(`https://maps.google.com/?q=${encodeURIComponent(a)}`,"_blank");
 const fmtTime = (s)=>`${String(Math.floor(s/60)).padStart(2,"0")}:${String(s%60).padStart(2,"0")}`;
@@ -391,29 +391,29 @@ const CHECKLIST=[
 
 const CHEM_OPTIONS={
   ph_low:[
-    {id:"soda_ash",    label:"Soda Ash (Sodium Carbonate)",      unit:"oz",    formula:(d,g)=>+(d/0.2*6*(g/10000)).toFixed(1)},
-    {id:"baking_soda_ph",label:"Baking Soda (mild pH raise)",   unit:"lbs",   formula:(d,g)=>+(d/0.1*1.5*(g/10000)).toFixed(2)},
+    {id:"soda_ash",    label:"Soda Ash (Sodium Carbonate)",      unit:"lbs",  formula:(d,g)=>+(d/0.2*0.375*(g/10000)).toFixed(2)},
+    {id:"baking_soda_ph",label:"Baking Soda (mild pH raise)",   unit:"lbs",  formula:(d,g)=>+(d/0.1*1.5*(g/10000)).toFixed(2)},
   ],
   ph_high:[
-    {id:"muriatic",    label:"Muriatic Acid (31.45%)",           unit:"fl oz", formula:(d,g)=>+(d/0.2*32*(g/10000)).toFixed(1)},
-    {id:"dry_acid",    label:"Dry Acid (Sodium Bisulfate)",      unit:"oz",    formula:(d,g)=>+(d/0.2*8*(g/10000)).toFixed(1)},
+    {id:"muriatic",    label:"Muriatic Acid (31.45%)",           unit:"qts",  formula:(d,g)=>+(d/0.2*(g/10000)).toFixed(2)},
+    {id:"dry_acid",    label:"Dry Acid (Sodium Bisulfate)",      unit:"lbs",  formula:(d,g)=>+(d/0.2*0.5*(g/10000)).toFixed(2)},
   ],
   chlorine_low:[
-    {id:"liquid_cl",   label:"Liquid Chlorine (10–12%)",         unit:"fl oz", formula:(d,g)=>+(d*32*(g/10000)).toFixed(1)},
-    {id:"cal_hypo",    label:"Cal-Hypo 68% (granular)",          unit:"oz",    formula:(d,g)=>+(d/5*16*(g/10000)).toFixed(1)},
-    {id:"shock",       label:"Pool Shock (1 lb bags)",           unit:"lbs",   formula:(d,g)=>+(d/5*(g/10000)).toFixed(2)},
+    {id:"liquid_cl",   label:"Liquid Chlorine (10–12%)",         unit:"qts",  formula:(d,g)=>+(d*(g/10000)).toFixed(2)},
+    {id:"cal_hypo",    label:"Cal-Hypo 68% (granular)",          unit:"lbs",  formula:(d,g)=>+(d/5*(g/10000)).toFixed(2)},
+    {id:"shock",       label:"Pool Shock (1 lb bags)",           unit:"lbs",  formula:(d,g)=>+(d/5*(g/10000)).toFixed(2)},
   ],
   alkalinity_low:[
-    {id:"baking_soda", label:"Baking Soda (Sodium Bicarbonate)", unit:"lbs",   formula:(d,g)=>+(d/10*1.5*(g/10000)).toFixed(2)},
+    {id:"baking_soda", label:"Baking Soda (Sodium Bicarbonate)", unit:"lbs",  formula:(d,g)=>+(d/10*1.5*(g/10000)).toFixed(2)},
   ],
   alkalinity_high:[
-    {id:"muriatic_alk",label:"Muriatic Acid (31.45%)",           unit:"fl oz", formula:(d,g)=>+(d/10*32*(g/10000)).toFixed(1)},
+    {id:"muriatic_alk",label:"Muriatic Acid (31.45%)",           unit:"qts",  formula:(d,g)=>+(d/10*(g/10000)).toFixed(2)},
   ],
   calcium_low:[
-    {id:"cal_chloride",label:"Calcium Chloride (anhydrous)",     unit:"lbs",   formula:(d,g)=>+(d/10*1.25*(g/10000)).toFixed(2)},
+    {id:"cal_chloride",label:"Calcium Chloride (anhydrous)",     unit:"lbs",  formula:(d,g)=>+(d/10*1.25*(g/10000)).toFixed(2)},
   ],
   salt_low:[
-    {id:"pool_salt",   label:"Pool Salt (NaCl)",                 unit:"lbs",   formula:(d,g)=>+(d/500*50*(g/10000)).toFixed(0)},
+    {id:"pool_salt",   label:"Pool Salt (NaCl)",                 unit:"lbs",  formula:(d,g)=>+(d/500*50*(g/10000)).toFixed(0)},
   ],
 };
 
@@ -432,6 +432,8 @@ function ServiceVisit({pool,filterEvery,twilio,currentUser,onComplete,onBack,onL
   const [addedChems,setAddedChems]=useState({});
   const [showDosingModal,setShowDosingModal]=useState(false);
   const [chemAddedAmounts,setChemAddedAmounts]=useState({});
+  const [chlorineTabs,setChlorineTabs]=useState("");
+  const [reportText,setReportText]=useState("");
 
   const filterDue=pool.filterVisits>=filterEvery;
   const required=CHECKLIST.filter(i=>!i.isFilter||filterDue);
@@ -445,11 +447,11 @@ function ServiceVisit({pool,filterEvery,twilio,currentUser,onComplete,onBack,onL
 
   const finish=async()=>{
     setRunning(false);setFinishing(true);
-    const ph=parseFloat(chem.ph)||pool.ph;
-    const cl=parseFloat(chem.chlorine)||pool.chlorine;
-    const alk=parseFloat(chem.alkalinity)||pool.alkalinity;
-    const cal=parseFloat(chem.calcium)||pool.calcium;
-    const updated={...pool,ph,chlorine:cl,alkalinity:alk,calcium:cal,notes:chem.notes||pool.notes,status:"Completed",lastService:todayStr(),photos:[...pool.photos,...beforePhotos],afterPhotos:[...afterPhotos],visits:pool.visits+1,filterVisits:filterDone?0:pool.filterVisits+1,lastDuration:elapsed};
+    const ph=chem.ph?parseFloat(chem.ph):null;
+    const cl=chem.chlorine?parseFloat(chem.chlorine):null;
+    const alk=chem.alkalinity?parseFloat(chem.alkalinity):null;
+    const cal=chem.calcium?parseFloat(chem.calcium):null;
+    const updated={...pool,ph:ph??pool.ph,chlorine:cl??pool.chlorine,alkalinity:alk??pool.alkalinity,calcium:cal??pool.calcium,notes:chem.notes||pool.notes,status:"Completed",lastService:todayStr(),photos:[...pool.photos,...beforePhotos],afterPhotos:[...afterPhotos],visits:pool.visits+1,filterVisits:filterDone?0:pool.filterVisits+1,lastDuration:elapsed};
     onLogVisit({customer:pool.customer,tech:currentUser.name,duration:elapsed,ph,chlorine:cl,alkalinity:alk,calcium:cal,notes:chem.notes,filterCleaned:filterDone,beforePhotos:beforePhotos.length,afterPhotos:afterPhotos.length});
     if(twilio?.sid&&pool.phone){
       const chemLog=[
@@ -467,7 +469,11 @@ function ServiceVisit({pool,filterEvery,twilio,currentUser,onComplete,onBack,onL
         const selOpt=opts.find(o=>o.id===selId)||opts[0];
         return `• ${p.label}: ${amt} ${selOpt?.unit||""} of ${selOpt?.label||""}`;
       }).filter(Boolean).join("\n");
-      const body=`Hi ${pool.customer.split(" ")[0]}! ✅ Your Desert Bloom pool service is complete!\n\n💧 Chemistry:\n• pH: ${ph}\n• Chlorine: ${cl} ppm\n• Alkalinity: ${alk} ppm\n${chemLog?`\n🧪 Chemicals Added:\n${chemLog}\n`:""}\nDuration: ${fmtTime(elapsed)}\n🌵 — Desert Bloom`;
+      const tabsLine=chlorineTabs?`• Chlorine Tabs: ${chlorineTabs} tab${chlorineTabs==="1"?"":"s"}`:"";
+      const readingLines=[ph!=null?`• pH: ${ph}`:null,cl!=null?`• Chlorine: ${cl} ppm`:null,alk!=null?`• Alkalinity: ${alk} ppm`:null,cal!=null?`• Calcium: ${cal} ppm`:null].filter(Boolean).join("\n");
+      const addedLines=[chemLog,tabsLine].filter(Boolean).join("\n");
+      const body=`Hi ${pool.customer.split(" ")[0]}! ✅ Your Desert Bloom pool service is complete!\n\n${readingLines?`💧 Chemistry:\n${readingLines}\n`:""}${addedLines?`\n🧪 Chemicals Added:\n${addedLines}\n`:""}\nDuration: ${fmtTime(elapsed)}\n🌵 — Desert Bloom`;
+      setReportText(body);
       try{ await sendSMS(pool.phone,body,twilio); }catch{}
     }
     setFinishing(false);onComplete(updated);setStep("done");
@@ -560,7 +566,8 @@ function ServiceVisit({pool,filterEvery,twilio,currentUser,onComplete,onBack,onL
                 {key:"calcium",   label:"Calcium Hardness", unit:" ppm", range:CR.calcium},
                 ...(pool.salt?[{key:"salt",label:"Salt",unit:" ppm",range:[2700,3400]}]:[]),
               ].map(param=>{
-                const val=parseFloat(chem[param.key])||pool[param.key]||0;
+                if(!chem[param.key]) return null;
+                const val=parseFloat(chem[param.key]);
                 const [lo,hi]=param.range;
                 const s=val<lo?"low":val>hi?"high":"ok";
                 const diff=s==="low"?+(lo-val).toFixed(2):s==="high"?+(val-hi).toFixed(2):0;
@@ -604,6 +611,14 @@ function ServiceVisit({pool,filterEvery,twilio,currentUser,onComplete,onBack,onL
                   </div>
                 );
               })}
+              <div style={{background:"#0d1626",borderRadius:14,padding:"14px 16px",marginBottom:10,border:"1px solid rgba(59,130,246,0.2)"}}>
+                <div style={{fontSize:13,fontWeight:700,color:"#e2e8f0",marginBottom:4}}>🟡 Chlorine Tabs</div>
+                <div style={{fontSize:12,color:"#6b7280",marginBottom:10}}>How many tabs did you add to the floater / feeder?</div>
+                <div style={{display:"flex",gap:8,alignItems:"center"}}>
+                  <input type="number" inputMode="numeric" value={chlorineTabs} onChange={e=>setChlorineTabs(e.target.value)} placeholder="0" style={{flex:1,background:"#111827",border:`1px solid ${chlorineTabs?"rgba(34,197,94,0.4)":"rgba(255,255,255,0.1)"}`,borderRadius:8,padding:"10px 12px",fontSize:20,fontWeight:700,color:"#e2e8f0",outline:"none",boxSizing:"border-box"}}/>
+                  <span style={{fontSize:14,color:"#6b7280"}}>tabs</span>
+                </div>
+              </div>
               <button onClick={()=>{setShowDosingModal(false);setStep("checklist");}} style={{width:"100%",background:"linear-gradient(135deg,#3b82f6,#06b6d4)",border:"none",borderRadius:14,padding:"15px",fontSize:15,fontWeight:700,color:"#fff",cursor:"pointer",marginTop:6}}>Next: Service Checklist →</button>
             </div>
           </div>
