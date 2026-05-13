@@ -31,12 +31,12 @@ const DEFAULT_USERS = [
 ];
 
 const DEFAULT_POOLS = [
-  { id:1, customer:"Marcus Holt",          phone:"+14806453994", address:"4821 Desert Willow Dr, Scottsdale, AZ 85254", lat:33.636,lng:-111.923, type:"Residential", size:"15,000 gal", status:"Due Today", lastService:"Apr 20", tech:"JR", ph:7.2,chlorine:1.8,alkalinity:90, calcium:280,salt:3100, notes:"Skimmer basket clogged", equipment:["Hayward Pump","Pentair Filter","Jandy Heater"], photos:[],afterPhotos:[],order:1,visits:14,filterVisits:14, monthlyRate:149, serviceDay:"Monday" },
-  { id:2, customer:"Sandra Voss",          phone:"+14806453994", address:"112 Cactus Bloom Ln, Phoenix, AZ 85016",      lat:33.508,lng:-112.074, type:"Residential", size:"22,000 gal", status:"Due Today", lastService:"Apr 20", tech:"TM", ph:7.6,chlorine:0.9,alkalinity:120,calcium:310,salt:3400, notes:"Less chlorine",         equipment:["Pentair Pump","Hayward Filter"],              photos:[],afterPhotos:[],order:2,visits:8, filterVisits:8,  monthlyRate:149, serviceDay:"Monday" },
-  { id:3, customer:"Sunrise Resort",       phone:"+14806453994", address:"9900 N Scottsdale Rd, Scottsdale, AZ 85253",  lat:33.685,lng:-111.925, type:"Commercial",  size:"85,000 gal", status:"Overdue",   lastService:"Apr 15", tech:"JR", ph:6.8,chlorine:0.4,alkalinity:75, calcium:200,salt:null,  notes:"Heater noise",          equipment:["Commercial Pump A","Sand Filter","UV System"], photos:[],afterPhotos:[],order:3,visits:19,filterVisits:19, monthlyRate:425, serviceDay:"Wednesday" },
-  { id:4, customer:"Tony & Rita Espinoza", phone:"+14806453994", address:"5503 Saguaro Ridge Ct, Tempe, AZ 85284",      lat:33.352,lng:-111.940, type:"Residential", size:"18,500 gal", status:"Completed", lastService:"Apr 27", tech:"TM", ph:7.4,chlorine:2.1,alkalinity:100,calcium:250,salt:3200, notes:"All good",              equipment:["Hayward Pump","Cartridge Filter"],            photos:[],afterPhotos:[],order:4,visits:3, filterVisits:3,  monthlyRate:149, serviceDay:"Thursday" },
-  { id:5, customer:"Pinnacle HOA",         phone:"+14806453994", address:"23000 N Pima Rd, Scottsdale, AZ 85255",       lat:33.718,lng:-111.842, type:"Commercial",  size:"120,000 gal",status:"Scheduled", lastService:"Apr 22", tech:"JR", ph:7.3,chlorine:1.5,alkalinity:110,calcium:300,salt:null,  notes:"Acid wash due May",     equipment:["Pentair IntelliFlo","Commercial Filter"],     photos:[],afterPhotos:[],order:5,visits:6, filterVisits:6,  monthlyRate:680, serviceDay:"Friday" },
-  { id:6, customer:"Derek Clune",          phone:"+14806453994", address:"2288 Ironwood Pass Dr, Gilbert, AZ 85298",    lat:33.264,lng:-111.789, type:"Residential", size:"12,000 gal", status:"Scheduled", lastService:"Apr 22", tech:"TM", ph:7.5,chlorine:1.6,alkalinity:95, calcium:260,salt:3050, notes:"",                      equipment:["Hayward Pump","Hayward Filter"],              photos:[],afterPhotos:[],order:6,visits:11,filterVisits:11, monthlyRate:129, serviceDay:"Friday" },
+  { id:1, customer:"Marcus Holt",          phone:"+14806453994", address:"4821 Desert Willow Dr, Scottsdale, AZ 85254", lat:33.636,lng:-111.923, type:"Residential", size:"15,000 gal", status:"Due Today", lastService:"Apr 20", tech:"JR", ph:7.2,chlorine:1.8,alkalinity:90, calcium:280,salt:3100, notes:"Skimmer basket clogged", equipment:["Hayward Pump","Pentair Filter","Jandy Heater"], photos:[],afterPhotos:[],order:1,visits:14,filterVisits:14, monthlyRate:149, serviceDay:"Monday", scheduledTime:420 },
+  { id:2, customer:"Sandra Voss",          phone:"+14806453994", address:"112 Cactus Bloom Ln, Phoenix, AZ 85016",      lat:33.508,lng:-112.074, type:"Residential", size:"22,000 gal", status:"Due Today", lastService:"Apr 20", tech:"TM", ph:7.6,chlorine:0.9,alkalinity:120,calcium:310,salt:3400, notes:"Less chlorine",         equipment:["Pentair Pump","Hayward Filter"],              photos:[],afterPhotos:[],order:2,visits:8, filterVisits:8,  monthlyRate:149, serviceDay:"Monday", scheduledTime:450 },
+  { id:3, customer:"Sunrise Resort",       phone:"+14806453994", address:"9900 N Scottsdale Rd, Scottsdale, AZ 85253",  lat:33.685,lng:-111.925, type:"Commercial",  size:"85,000 gal", status:"Overdue",   lastService:"Apr 15", tech:"JR", ph:6.8,chlorine:0.4,alkalinity:75, calcium:200,salt:null,  notes:"Heater noise",          equipment:["Commercial Pump A","Sand Filter","UV System"], photos:[],afterPhotos:[],order:3,visits:19,filterVisits:19, monthlyRate:425, serviceDay:"Wednesday", scheduledTime:420 },
+  { id:4, customer:"Tony & Rita Espinoza", phone:"+14806453994", address:"5503 Saguaro Ridge Ct, Tempe, AZ 85284",      lat:33.352,lng:-111.940, type:"Residential", size:"18,500 gal", status:"Completed", lastService:"Apr 27", tech:"TM", ph:7.4,chlorine:2.1,alkalinity:100,calcium:250,salt:3200, notes:"All good",              equipment:["Hayward Pump","Cartridge Filter"],            photos:[],afterPhotos:[],order:4,visits:3, filterVisits:3,  monthlyRate:149, serviceDay:"Thursday", scheduledTime:420 },
+  { id:5, customer:"Pinnacle HOA",         phone:"+14806453994", address:"23000 N Pima Rd, Scottsdale, AZ 85255",       lat:33.718,lng:-111.842, type:"Commercial",  size:"120,000 gal",status:"Scheduled", lastService:"Apr 22", tech:"JR", ph:7.3,chlorine:1.5,alkalinity:110,calcium:300,salt:null,  notes:"Acid wash due May",     equipment:["Pentair IntelliFlo","Commercial Filter"],     photos:[],afterPhotos:[],order:5,visits:6, filterVisits:6,  monthlyRate:680, serviceDay:"Friday", scheduledTime:420 },
+  { id:6, customer:"Derek Clune",          phone:"+14806453994", address:"2288 Ironwood Pass Dr, Gilbert, AZ 85298",    lat:33.264,lng:-111.789, type:"Residential", size:"12,000 gal", status:"Scheduled", lastService:"Apr 22", tech:"TM", ph:7.5,chlorine:1.6,alkalinity:95, calcium:260,salt:3050, notes:"",                      equipment:["Hayward Pump","Hayward Filter"],              photos:[],afterPhotos:[],order:6,visits:11,filterVisits:11, monthlyRate:129, serviceDay:"Friday", scheduledTime:450 },
 ];
 
 const DEFAULT_INVOICES = [
@@ -822,39 +822,58 @@ function UserManager({users,onSave,onBack}){
   );
 }
 
-function RouteList({pools,onReorder,onSelect,techFilter,setTechFilter,users,showFilter=true}){
+function RouteList({pools,onReorder,onSelect,onTimeChange,techFilter,setTechFilter,users,showFilter=true}){
   const [dragging,setDragging]=useState(null);
   const [over,setOver]=useState(null);
-  const sorted=[...pools].sort((a,b)=>(a.order||99)-(b.order||99));
+  const DAYS=["Monday","Tuesday","Wednesday","Thursday","Friday","Saturday"];
+  const fmtTime=(mins)=>{if(mins==null)return"7:00 AM";const h=Math.floor(mins/60)%12||12;const m=mins%60;const ampm=Math.floor(mins/60)<12?"AM":"PM";return`${h}:${m.toString().padStart(2,"0")} ${ampm}`;};
+  const sorted=[...pools].sort((a,b)=>(a.scheduledTime??420)-(b.scheduledTime??420)||(a.order||99)-(b.order||99));
   const techs=users.filter(u=>u.role==="tech");
-  const drop=(e,tid)=>{ e.preventDefault(); if(dragging===tid){setDragging(null);setOver(null);return;} const fi=sorted.findIndex(p=>p.id===dragging),ti=sorted.findIndex(p=>p.id===tid); const re=[...sorted];const[m]=re.splice(fi,1);re.splice(ti,0,m); onReorder(re.map((p,i)=>({...p,order:i+1}))); setDragging(null);setOver(null); };
+  const drop=(e,tid,dayPools)=>{e.preventDefault();if(dragging===tid){setDragging(null);setOver(null);return;}const fi=dayPools.findIndex(p=>p.id===dragging);const ti=dayPools.findIndex(p=>p.id===tid);if(fi<0||ti<0){setDragging(null);setOver(null);return;}const re=[...dayPools];const[mv]=re.splice(fi,1);re.splice(ti,0,mv);onReorder(re.map((p,i)=>({...p,order:i+1})));setDragging(null);setOver(null);};
   return(
     <div style={{padding:"14px 16px"}}>
       <div style={{fontSize:17,fontWeight:700,marginBottom:2}}>Route Planner</div>
-      <div style={{fontSize:12,color:"#6b7280",marginBottom:12}}>Drag ⠿ handle to reorder</div>
+      <div style={{fontSize:12,color:"#6b7280",marginBottom:12}}>Grouped by day · tap −/+ to shift 30 min · drag ⠿ to reorder</div>
       {showFilter&&(<div style={{display:"flex",gap:6,marginBottom:14,flexWrap:"wrap"}}>
         <button onClick={()=>setTechFilter("all")} style={{background:techFilter==="all"?"#3b82f6":"#0d1626",color:techFilter==="all"?"#fff":"#9ca3af",border:`1px solid ${techFilter==="all"?"#3b82f6":"rgba(255,255,255,0.07)"}`,borderRadius:20,padding:"5px 14px",fontSize:12,fontWeight:600,cursor:"pointer"}}>All</button>
         {techs.map(t=><button key={t.id} onClick={()=>setTechFilter(t.id)} style={{background:techFilter===t.id?"#3b82f6":"#0d1626",color:techFilter===t.id?"#fff":"#9ca3af",border:`1px solid ${techFilter===t.id?"#3b82f6":"rgba(255,255,255,0.07)"}`,borderRadius:20,padding:"5px 14px",fontSize:12,fontWeight:600,cursor:"pointer"}}>{t.name.split(" ")[0]}</button>)}
       </div>)}
-      {sorted.map((pool,i)=>(
-        <div key={pool.id} draggable onDragStart={e=>{setDragging(pool.id);e.dataTransfer.effectAllowed="move";}} onDragOver={e=>{e.preventDefault();setOver(pool.id);}} onDrop={e=>drop(e,pool.id)} onDragEnd={()=>{setDragging(null);setOver(null);}} style={{background:over===pool.id?"rgba(59,130,246,0.1)":"#0d1626",borderRadius:13,padding:"12px 14px",marginBottom:8,border:`2px solid ${dragging===pool.id?"#3b82f6":over===pool.id?"rgba(59,130,246,0.4)":"rgba(255,255,255,0.04)"}`,opacity:dragging===pool.id?0.4:1,cursor:"grab",userSelect:"none"}}>
-          <div style={{display:"flex",gap:10,alignItems:"flex-start"}}>
-            <div style={{display:"flex",flexDirection:"column",alignItems:"center",gap:3,paddingTop:2}}>
-              <span style={{fontSize:14,color:"#374151"}}>⠿</span>
-              <div style={{width:24,height:24,borderRadius:50,background:pool.status==="Completed"?"#22c55e":"#1f2937",display:"flex",alignItems:"center",justifyContent:"center",fontSize:10,fontWeight:700,color:pool.status==="Completed"?"#fff":"#6b7280"}}>{pool.status==="Completed"?"✓":i+1}</div>
+      {DAYS.map(day=>{
+        const dayPools=sorted.filter(p=>p.serviceDay===day);
+        if(dayPools.length===0)return null;
+        return(
+          <div key={day} style={{marginBottom:22}}>
+            <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:10,paddingBottom:8,borderBottom:"1px solid rgba(59,130,246,0.25)"}}>
+              <span style={{fontSize:13,fontWeight:700,color:"#60a5fa"}}>📅 {day}</span>
+              <span style={{fontSize:11,color:"#6b7280",background:"#111827",borderRadius:10,padding:"2px 8px"}}>{dayPools.length} stop{dayPools.length!==1?"s":""}</span>
             </div>
-            <div style={{flex:1}}>
-              <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:4}}><div style={{fontWeight:600,fontSize:14}}>{pool.customer}</div><Badge status={pool.status}/></div>
-              <button onClick={e=>{e.stopPropagation();openMaps(pool.address);}} style={{fontSize:12,color:"#60a5fa",background:"none",border:"none",cursor:"pointer",padding:0,textDecoration:"underline",textAlign:"left",marginBottom:6}}>📍 {pool.address.split(",")[0]}</button>
-              <div style={{display:"flex",gap:6,flexWrap:"wrap"}}>
-                <span style={{fontSize:11,background:"#111827",color:"#9ca3af",borderRadius:6,padding:"2px 7px"}}>{users.find(u=>u.id===pool.tech)?.name||pool.tech}</span>
-                {pool.monthlyRate&&<span style={{fontSize:11,background:"rgba(34,197,94,0.1)",color:"#22c55e",borderRadius:6,padding:"2px 7px"}}>{fmtMoney(pool.monthlyRate)}/mo</span>}
-                <button onClick={e=>{e.stopPropagation();onSelect(pool);}} style={{fontSize:11,background:"rgba(59,130,246,0.1)",border:"1px solid rgba(59,130,246,0.2)",color:"#60a5fa",borderRadius:6,padding:"2px 8px",cursor:"pointer"}}>Details</button>
+            {dayPools.map((pool,i)=>(
+              <div key={pool.id} draggable onDragStart={e=>{setDragging(pool.id);e.dataTransfer.effectAllowed="move";}} onDragOver={e=>{e.preventDefault();setOver(pool.id);}} onDrop={e=>drop(e,pool.id,dayPools)} onDragEnd={()=>{setDragging(null);setOver(null);}} style={{background:over===pool.id?"rgba(59,130,246,0.1)":"#0d1626",borderRadius:13,padding:"12px 14px",marginBottom:8,border:`2px solid ${dragging===pool.id?"#3b82f6":over===pool.id?"rgba(59,130,246,0.4)":"rgba(255,255,255,0.04)"}`,opacity:dragging===pool.id?0.4:1,userSelect:"none"}}>
+                <div style={{display:"flex",gap:10,alignItems:"flex-start"}}>
+                  <div style={{display:"flex",flexDirection:"column",alignItems:"center",gap:3,paddingTop:2,cursor:"grab"}}>
+                    <span style={{fontSize:14,color:"#374151"}}>⠿</span>
+                    <div style={{width:24,height:24,borderRadius:50,background:pool.status==="Completed"?"#22c55e":"#1f2937",display:"flex",alignItems:"center",justifyContent:"center",fontSize:10,fontWeight:700,color:pool.status==="Completed"?"#fff":"#6b7280"}}>{pool.status==="Completed"?"✓":i+1}</div>
+                  </div>
+                  <div style={{flex:1}}>
+                    <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:6}}><div style={{fontWeight:600,fontSize:14}}>{pool.customer}</div><Badge status={pool.status}/></div>
+                    <div style={{display:"flex",alignItems:"center",gap:6,marginBottom:7}}>
+                      <button onClick={e=>{e.stopPropagation();onTimeChange&&onTimeChange(pool.id,Math.max(360,(pool.scheduledTime??420)-30));}} style={{background:"#1f2937",border:"1px solid rgba(255,255,255,0.1)",borderRadius:6,padding:"4px 9px",fontSize:11,color:"#9ca3af",cursor:"pointer",fontWeight:600}}>−30m</button>
+                      <span style={{fontSize:12,fontWeight:700,color:"#e2e8f0",background:"#111827",borderRadius:8,padding:"4px 12px",minWidth:74,textAlign:"center",letterSpacing:0.3}}>{fmtTime(pool.scheduledTime??420)}</span>
+                      <button onClick={e=>{e.stopPropagation();onTimeChange&&onTimeChange(pool.id,Math.min(1380,(pool.scheduledTime??420)+30));}} style={{background:"#1f2937",border:"1px solid rgba(255,255,255,0.1)",borderRadius:6,padding:"4px 9px",fontSize:11,color:"#9ca3af",cursor:"pointer",fontWeight:600}}>+30m</button>
+                    </div>
+                    <button onClick={e=>{e.stopPropagation();openMaps(pool.address);}} style={{fontSize:12,color:"#60a5fa",background:"none",border:"none",cursor:"pointer",padding:0,textDecoration:"underline",textAlign:"left",marginBottom:6}}>📍 {pool.address.split(",")[0]}</button>
+                    <div style={{display:"flex",gap:6,flexWrap:"wrap",marginTop:2}}>
+                      <span style={{fontSize:11,background:"#111827",color:"#9ca3af",borderRadius:6,padding:"2px 7px"}}>{users.find(u=>u.id===pool.tech)?.name||pool.tech}</span>
+                      {pool.monthlyRate&&<span style={{fontSize:11,background:"rgba(34,197,94,0.1)",color:"#22c55e",borderRadius:6,padding:"2px 7px"}}>{fmtMoney(pool.monthlyRate)}/mo</span>}
+                      <button onClick={e=>{e.stopPropagation();onSelect(pool);}} style={{fontSize:11,background:"rgba(59,130,246,0.1)",border:"1px solid rgba(59,130,246,0.2)",color:"#60a5fa",borderRadius:6,padding:"2px 8px",cursor:"pointer"}}>Details</button>
+                    </div>
+                  </div>
+                </div>
               </div>
-            </div>
+            ))}
           </div>
-        </div>
-      ))}
+        );
+      })}
     </div>
   );
 }
@@ -1115,7 +1134,7 @@ function DesertBloom(){
           <div style={{padding:"14px 16px 0",display:"flex",justifyContent:"flex-end"}}>
             <button onClick={()=>optimize([...pools].sort((a,b)=>(a.order||99)-(b.order||99)))} disabled={optimizing} style={{background:optimizing?"#1f2937":"linear-gradient(135deg,#22c55e,#16a34a)",border:"none",borderRadius:10,padding:"8px 16px",fontSize:12,fontWeight:700,color:optimizing?"#6b7280":"#fff",cursor:"pointer"}}>{optimizing?"⚙️ Optimizing...":"⚡ Optimize All"}</button>
           </div>
-          <RouteList pools={routeFilter==="all"?pools:pools.filter(p=>p.tech===routeFilter)} onReorder={re=>upPools([...pools.filter(p=>!re.find(r=>r.id===p.id)),...re])} onSelect={setSelPool} techFilter={routeFilter} setTechFilter={setRouteFilter} users={users}/>
+          <RouteList pools={routeFilter==="all"?pools:pools.filter(p=>p.tech===routeFilter)} onReorder={re=>upPools([...pools.filter(p=>!re.find(r=>r.id===p.id)),...re])} onSelect={setSelPool} onTimeChange={(id,mins)=>upPools(pools.map(p=>p.id===id?{...p,scheduledTime:mins}:p))} techFilter={routeFilter} setTechFilter={setRouteFilter} users={users}/>
         </>
       ),
       customers:(
@@ -1281,7 +1300,7 @@ function DesertBloom(){
         <div style={{padding:"14px 16px 0",display:"flex",justifyContent:"flex-end"}}>
           <button onClick={()=>optimize(myPools)} disabled={optimizing} style={{background:optimizing?"#1f2937":"linear-gradient(135deg,#22c55e,#16a34a)",border:"none",borderRadius:10,padding:"8px 14px",fontSize:12,fontWeight:700,color:optimizing?"#6b7280":"#fff",cursor:"pointer"}}>{optimizing?"⚙️...":"⚡ Optimize"}</button>
         </div>
-        <RouteList pools={myPools} onReorder={re=>upPools([...pools.filter(p=>!re.find(r=>r.id===p.id)),...re])} onSelect={setSelPool} techFilter={user.id} setTechFilter={()=>{}} users={users} showFilter={false}/>
+        <RouteList pools={myPools} onReorder={re=>upPools([...pools.filter(p=>!re.find(r=>r.id===p.id)),...re])} onSelect={setSelPool} onTimeChange={(id,mins)=>upPools(pools.map(p=>p.id===id?{...p,scheduledTime:mins}:p))} techFilter={user.id} setTechFilter={()=>{}} users={users} showFilter={false}/>
       </>
     ),
     customers:(
