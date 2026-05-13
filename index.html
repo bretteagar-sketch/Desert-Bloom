@@ -830,8 +830,8 @@ function RouteList({pools,onReorder,onSelect,onTimeChange,techFilter,setTechFilt
   const todayIdx=ALL_DAYS.indexOf(TODAY_NAME);
   const startIdx=todayIdx>=0?todayIdx:0;
   const [dayOffset,setDayOffset]=useState(0);
-  const currentDayIdx=(startIdx+dayOffset+6)%6;
-  const day=ALL_DAYS[currentDayIdx];
+  const currentDayIdx=((startIdx+dayOffset)%6+6)%6;
+  const day=ALL_DAYS[currentDayIdx]||ALL_DAYS[0];
   const isToday=day===TODAY_NAME;
   const fmtTime=(mins)=>{if(mins==null)return"7:00 AM";const h=Math.floor(mins/60)%12||12;const m=mins%60;const ampm=Math.floor(mins/60)<12?"AM":"PM";return`${h}:${m.toString().padStart(2,"0")} ${ampm}`;};
   const sorted=[...pools].sort((a,b)=>(a.scheduledTime??420)-(b.scheduledTime??420)||(a.order||99)-(b.order||99));
@@ -844,7 +844,6 @@ function RouteList({pools,onReorder,onSelect,onTimeChange,techFilter,setTechFilt
         <button onClick={()=>setTechFilter("all")} style={{background:techFilter==="all"?"#3b82f6":"#0d1626",color:techFilter==="all"?"#fff":"#9ca3af",border:`1px solid ${techFilter==="all"?"#3b82f6":"rgba(255,255,255,0.07)"}`,borderRadius:20,padding:"5px 14px",fontSize:12,fontWeight:600,cursor:"pointer"}}>All</button>
         {techs.map(t=><button key={t.id} onClick={()=>setTechFilter(t.id)} style={{background:techFilter===t.id?"#3b82f6":"#0d1626",color:techFilter===t.id?"#fff":"#9ca3af",border:`1px solid ${techFilter===t.id?"#3b82f6":"rgba(255,255,255,0.07)"}`,borderRadius:20,padding:"5px 14px",fontSize:12,fontWeight:600,cursor:"pointer"}}>{t.name.split(" ")[0]}</button>)}
       </div>)}
-      {/* Day navigator */}
       <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:16,background:"#0d1626",borderRadius:14,padding:"12px 14px",border:`1px solid ${isToday?"rgba(34,197,94,0.3)":"rgba(255,255,255,0.06)"}`}}>
         <button onClick={()=>setDayOffset(o=>o-1)} style={{background:"#1f2937",border:"1px solid rgba(255,255,255,0.1)",borderRadius:10,width:36,height:36,fontSize:18,color:"#9ca3af",cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center"}}>‹</button>
         <div style={{textAlign:"center"}}>
@@ -998,7 +997,7 @@ function DesertBloom(){
     DB.getAll().then(data=>{
       if(data){
         if(data.config){const tw=data.config.find(r=>r.Key==="twilio");if(tw)try{setTwilio(JSON.parse(tw.Value));}catch{}const fe=data.config.find(r=>r.Key==="filterEvery");if(fe)try{setFilterEvery(JSON.parse(fe.Value));}catch{}}
-        if(data.pools&&data.pools.length){try{const p=data.pools.map(r=>r["JSON Data"]?JSON.parse(r["JSON Data"]):r).filter(r=>r&&r.customer);if(p.length)setPools(p);}catch{}}
+        if(data.pools&&data.pools.length){try{const p=data.pools.map(r=>r["JSON Data"]?JSON.parse(r["JSON Data"]):r).filter(r=>r&&r.customer).map(r=>{const def=DEFAULT_POOLS.find(d=>d.id===r.id);return{...(def||{}), ...r, serviceDay:r.serviceDay||def?.serviceDay||"Monday", scheduledTime:r.scheduledTime??def?.scheduledTime??420};});if(p.length)setPools(p);}catch{}}
         if(data.users&&data.users.length){try{const u=data.users.map(r=>({id:r.ID,name:r.Name,role:r.Role,password:r.Password,phone:r.Phone})).filter(u=>u.id&&u.name);if(u.length)setUsers(u);}catch{}}
         if(data.invoices&&data.invoices.length){try{const inv=data.invoices.map(r=>({id:r.ID,customer:r.Customer,amount:parseFloat(r.Amount)||0,serviceDate:r["Service Date"],status:r.Status,paidDate:r["Paid Date"]||"",notes:r.Notes||""})).filter(i=>i.customer);if(inv.length)setInvoices(inv);}catch{}}
       }
