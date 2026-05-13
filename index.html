@@ -951,6 +951,8 @@ function DesertBloom(){
   const [remindersSent,setRemindersSent]=useState({});
   const [twilioSaved,setTwilioSaved]=useState(false);
   const [filterSaved,setFilterSaved]=useState(false);
+  const [twilioTest,setTwilioTest]=useState(null);
+  const [twilioTesting,setTwilioTesting]=useState(false);
 
   useEffect(()=>{
     DB.getAll().then(data=>{
@@ -1004,6 +1006,16 @@ function DesertBloom(){
   const doLogin=()=>{ const u=users.find(u=>(u.name.toLowerCase().replace(/\s/g,"")===(loginCreds.u.toLowerCase().replace(/\s/g,""))||u.id?.toLowerCase()===loginCreds.u.toLowerCase())&&u.password===loginCreds.p);if(u){setUser(u);lsSet("db_session",u);setLoginErr("");}else setLoginErr("Wrong username or password."); };
   const logout=()=>{setUser(null);lsSet("db_session",null);};
   const saveTwilio=async(cfg)=>{ setTwilio(cfg);await DB.setConfig("twilio",cfg);setTwilioSaved(true);setTimeout(()=>setTwilioSaved(false),3000); };
+  const testTwilio=async()=>{
+    setTwilioTesting(true);setTwilioTest(null);
+    try{
+      const res=await fetch(`https://api.twilio.com/2010-04-01/Accounts/${twilio.sid}.json`,{headers:{"Authorization":"Basic "+btoa(`${twilio.sid}:${twilio.token}`)}});
+      const data=await res.json();
+      if(res.ok) setTwilioTest({ok:true,msg:`✓ Connected — Account: ${data.friendly_name||twilio.sid}`});
+      else setTwilioTest({ok:false,msg:`❌ ${data.message||"Authentication failed"} (Code ${data.code||res.status})`});
+    }catch(e){setTwilioTest({ok:false,msg:`❌ Network error: ${e.message}`});}
+    setTwilioTesting(false);
+  };
 
   if(loading) return(
     <div style={{fontFamily:"sans-serif",background:"#060d1a",minHeight:"100vh",display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",color:"#e2e8f0"}}>
@@ -1181,8 +1193,10 @@ function DesertBloom(){
             <div style={{fontSize:13,fontWeight:700,marginBottom:12}}>📱 Twilio SMS</div>
             {twilio.sid&&<div style={{fontSize:12,color:"#22c55e",marginBottom:10}}>✓ Configured · {twilio.from}</div>}
             {[["ACCOUNT SID","sid","AC...","text"],["AUTH TOKEN","token","Your auth token","password"],["FROM NUMBER","from","+14805715896","text"]].map(([l,k,ph,type])=>(<div key={k} style={{marginBottom:12}}><div style={{fontSize:11,color:"#6b7280",marginBottom:4,letterSpacing:1}}>{l}</div><input type={type} value={twilio[k]} onChange={e=>setTwilio(v=>({...v,[k]:e.target.value}))} placeholder={ph} style={{width:"100%",background:"#111827",border:"1px solid rgba(255,255,255,0.08)",borderRadius:9,padding:"10px 13px",fontSize:13,color:"#e2e8f0",outline:"none",boxSizing:"border-box",fontFamily:"monospace"}}/></div>))}
-            <button onClick={()=>saveTwilio(twilio)} style={{width:"100%",background:"linear-gradient(135deg,#3b82f6,#06b6d4)",border:"none",borderRadius:12,padding:"12px",fontSize:14,fontWeight:700,color:"#fff",cursor:"pointer"}}>Save to Google Sheets</button>
+            <button onClick={()=>saveTwilio(twilio)} style={{width:"100%",background:"linear-gradient(135deg,#3b82f6,#06b6d4)",border:"none",borderRadius:12,padding:"12px",fontSize:14,fontWeight:700,color:"#fff",cursor:"pointer",marginBottom:8}}>Save to Google Sheets</button>
+            <button onClick={testTwilio} disabled={twilioTesting||!twilio.sid} style={{width:"100%",background:twilioTesting?"#1f2937":"rgba(255,255,255,0.05)",border:"1px solid rgba(255,255,255,0.1)",borderRadius:12,padding:"12px",fontSize:14,fontWeight:700,color:twilioTesting||!twilio.sid?"#374151":"#9ca3af",cursor:twilio.sid?"pointer":"not-allowed"}}>{twilioTesting?"⏳ Testing...":"🔌 Test Connection"}</button>
             {twilioSaved&&<div style={{marginTop:10,background:"rgba(34,197,94,0.1)",border:"1px solid rgba(34,197,94,0.3)",borderRadius:10,padding:"10px",textAlign:"center",color:"#22c55e",fontWeight:700,fontSize:13}}>✓ Saved!</div>}
+            {twilioTest&&<div style={{marginTop:10,background:twilioTest.ok?"rgba(34,197,94,0.1)":"rgba(239,68,68,0.1)",border:`1px solid ${twilioTest.ok?"rgba(34,197,94,0.3)":"rgba(239,68,68,0.3)"}`,borderRadius:10,padding:"10px 12px",fontSize:13,color:twilioTest.ok?"#22c55e":"#f87171",fontWeight:600}}>{twilioTest.msg}</div>}
           </Card>
           <Card style={{marginBottom:14}}>
             <div style={{fontSize:13,fontWeight:700,marginBottom:4}}>🔵 Filter Cleaning Schedule</div>
