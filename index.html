@@ -62,6 +62,7 @@ const openMaps = (a)=>window.open(`https://maps.google.com/?q=${encodeURICompone
 const fmtTime = (s)=>`${String(Math.floor(s/60)).padStart(2,"0")}:${String(s%60).padStart(2,"0")}`;
 const todayStr = ()=>new Date().toLocaleDateString("en-US",{month:"short",day:"numeric"});
 const fmtMoney = (n)=>`$${Number(n||0).toLocaleString("en-US",{minimumFractionDigits:0})}`;
+const parseGallons=(s)=>{const m=(s||"").replace(/,/g,"").match(/[\d.]+/);return m?parseFloat(m[0]):10000;};
 const lsGet = (k,d)=>{ try{const v=localStorage.getItem(k);return v?JSON.parse(v):d;}catch{return d;} };
 const lsSet = (k,v)=>{ try{localStorage.setItem(k,JSON.stringify(v));}catch{} };
 
@@ -388,6 +389,34 @@ const CHECKLIST=[
   {id:"filter", label:"Cleaned Filter",      icon:"🔵",isFilter:true},
 ];
 
+const CHEM_OPTIONS={
+  ph_low:[
+    {id:"soda_ash",    label:"Soda Ash (Sodium Carbonate)",      unit:"oz",    formula:(d,g)=>+(d/0.2*6*(g/10000)).toFixed(1)},
+    {id:"baking_soda_ph",label:"Baking Soda (mild pH raise)",   unit:"lbs",   formula:(d,g)=>+(d/0.1*1.5*(g/10000)).toFixed(2)},
+  ],
+  ph_high:[
+    {id:"muriatic",    label:"Muriatic Acid (31.45%)",           unit:"fl oz", formula:(d,g)=>+(d/0.2*32*(g/10000)).toFixed(1)},
+    {id:"dry_acid",    label:"Dry Acid (Sodium Bisulfate)",      unit:"oz",    formula:(d,g)=>+(d/0.2*8*(g/10000)).toFixed(1)},
+  ],
+  chlorine_low:[
+    {id:"liquid_cl",   label:"Liquid Chlorine (10–12%)",         unit:"fl oz", formula:(d,g)=>+(d*32*(g/10000)).toFixed(1)},
+    {id:"cal_hypo",    label:"Cal-Hypo 68% (granular)",          unit:"oz",    formula:(d,g)=>+(d/5*16*(g/10000)).toFixed(1)},
+    {id:"shock",       label:"Pool Shock (1 lb bags)",           unit:"lbs",   formula:(d,g)=>+(d/5*(g/10000)).toFixed(2)},
+  ],
+  alkalinity_low:[
+    {id:"baking_soda", label:"Baking Soda (Sodium Bicarbonate)", unit:"lbs",   formula:(d,g)=>+(d/10*1.5*(g/10000)).toFixed(2)},
+  ],
+  alkalinity_high:[
+    {id:"muriatic_alk",label:"Muriatic Acid (31.45%)",           unit:"fl oz", formula:(d,g)=>+(d/10*32*(g/10000)).toFixed(1)},
+  ],
+  calcium_low:[
+    {id:"cal_chloride",label:"Calcium Chloride (anhydrous)",     unit:"lbs",   formula:(d,g)=>+(d/10*1.25*(g/10000)).toFixed(2)},
+  ],
+  salt_low:[
+    {id:"pool_salt",   label:"Pool Salt (NaCl)",                 unit:"lbs",   formula:(d,g)=>+(d/500*50*(g/10000)).toFixed(0)},
+  ],
+};
+
 function ServiceVisit({pool,filterEvery,twilio,currentUser,onComplete,onBack,onLogVisit}){
   const [step,setStep]=useState("start");
   const [elapsed,setElapsed]=useState(0);
@@ -399,6 +428,8 @@ function ServiceVisit({pool,filterEvery,twilio,currentUser,onComplete,onBack,onL
   const [checks,setChecks]=useState({});
   const [filterDone,setFilterDone]=useState(false);
   const [finishing,setFinishing]=useState(false);
+  const [selectedChems,setSelectedChems]=useState({});
+  const [addedChems,setAddedChems]=useState({});
 
   const filterDue=pool.filterVisits>=filterEvery;
   const required=CHECKLIST.filter(i=>!i.isFilter||filterDue);
@@ -435,7 +466,7 @@ function ServiceVisit({pool,filterEvery,twilio,currentUser,onComplete,onBack,onL
     </div>
   );
 
-  const stepList=["before_photos","chemicals","checklist","after_photos"];
+  const stepList=["before_photos","chemicals","chem_dosing","checklist","after_photos"];
   const stepIdx=stepList.indexOf(step);
 
   return(
@@ -494,7 +525,61 @@ function ServiceVisit({pool,filterEvery,twilio,currentUser,onComplete,onBack,onL
               {pool.salt&&<div style={{marginBottom:10}}><div style={{fontSize:11,color:"#6b7280",marginBottom:4}}>SALT (PPM)</div><input value={chem.salt} onChange={e=>setChem(v=>({...v,salt:e.target.value}))} placeholder="3200" style={{width:"100%",background:"#111827",border:"1px solid rgba(255,255,255,0.08)",borderRadius:8,padding:"9px 10px",fontSize:13,color:"#e2e8f0",outline:"none",boxSizing:"border-box"}}/></div>}
               <div><div style={{fontSize:11,color:"#6b7280",marginBottom:4}}>CHEMICALS ADDED / NOTES</div><textarea value={chem.notes} onChange={e=>setChem(v=>({...v,notes:e.target.value}))} placeholder="e.g. Added 2 lbs shock..." style={{width:"100%",background:"#111827",border:"1px solid rgba(255,255,255,0.08)",borderRadius:8,padding:"9px 10px",fontSize:13,color:"#e2e8f0",outline:"none",resize:"none",height:70,boxSizing:"border-box"}}/></div>
             </Card>
-            <button onClick={()=>setStep("checklist")} style={{width:"100%",background:"linear-gradient(135deg,#3b82f6,#06b6d4)",border:"none",borderRadius:14,padding:"14px",fontSize:15,fontWeight:700,color:"#fff",cursor:"pointer"}}>Next: Checklist →</button>
+            <button onClick={()=>setStep("chem_dosing")} style={{width:"100%",background:"linear-gradient(135deg,#3b82f6,#06b6d4)",border:"none",borderRadius:14,padding:"14px",fontSize:15,fontWeight:700,color:"#fff",cursor:"pointer"}}>Next: Chemical Dosing →</button>
+          </>
+        )}
+        {step==="chem_dosing"&&(
+          <>
+            <div style={{fontSize:16,fontWeight:700,marginBottom:4}}>🧪 Chemical Dosing</div>
+            <div style={{fontSize:13,color:"#6b7280",marginBottom:14}}>{pool.size} · Select chemical, add it, then check it off</div>
+            {[
+              {key:"ph",        label:"pH",               unit:"",     range:CR.ph},
+              {key:"chlorine",  label:"Chlorine",          unit:" ppm", range:CR.chlorine},
+              {key:"alkalinity",label:"Alkalinity",        unit:" ppm", range:CR.alkalinity},
+              {key:"calcium",   label:"Calcium Hardness",  unit:" ppm", range:CR.calcium},
+              ...(pool.salt?[{key:"salt",label:"Salt",unit:" ppm",range:[2700,3400]}]:[]),
+            ].map(param=>{
+              const val=parseFloat(chem[param.key])||pool[param.key]||0;
+              const [lo,hi]=param.range;
+              const s=val<lo?"low":val>hi?"high":"ok";
+              const diff=s==="low"?+(lo-val).toFixed(2):s==="high"?+(val-hi).toFixed(2):0;
+              const gal=parseGallons(pool.size);
+              const opts=CHEM_OPTIONS[`${param.key}_${s}`]||[];
+              const selId=selectedChems[param.key]||(opts[0]?.id||"");
+              const selOpt=opts.find(o=>o.id===selId)||opts[0];
+              const dose=selOpt?selOpt.formula(diff,gal):0;
+              const added=!!addedChems[param.key];
+              return(
+                <div key={param.key} style={{background:"#0d1626",borderRadius:14,padding:"14px 16px",marginBottom:10,border:`1px solid ${s==="ok"?"rgba(34,197,94,0.2)":s==="low"?"rgba(239,68,68,0.3)":"rgba(245,166,35,0.3)"}`}}>
+                  <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:s!=="ok"?10:0}}>
+                    <div>
+                      <div style={{fontSize:13,fontWeight:700,color:"#e2e8f0"}}>{param.label}</div>
+                      <div style={{fontSize:12,color:"#6b7280"}}>Reading: <span style={{fontWeight:700,color:s==="ok"?"#22c55e":s==="low"?"#ef4444":"#f5a623"}}>{val}{param.unit}</span><span style={{color:"#4b5563"}}> · Target {lo}–{hi}{param.unit}</span></div>
+                    </div>
+                    <span style={{fontSize:11,fontWeight:700,padding:"3px 10px",borderRadius:20,background:s==="ok"?"rgba(34,197,94,0.15)":s==="low"?"rgba(239,68,68,0.15)":"rgba(245,166,35,0.15)",color:s==="ok"?"#22c55e":s==="low"?"#ef4444":"#f5a623"}}>{s==="ok"?"✓ OK":s==="low"?"▼ LOW":"▲ HIGH"}</span>
+                  </div>
+                  {s!=="ok"&&opts.length>0&&(
+                    <div style={{borderTop:"1px solid rgba(255,255,255,0.06)",paddingTop:10}}>
+                      <div style={{fontSize:11,color:"#6b7280",marginBottom:8}}>Off by <span style={{color:"#f5a623",fontWeight:700}}>{diff}{param.unit}</span></div>
+                      <select value={selId} onChange={e=>setSelectedChems(v=>({...v,[param.key]:e.target.value}))} style={{width:"100%",background:"#111827",border:"1px solid rgba(255,255,255,0.1)",borderRadius:8,padding:"9px 10px",fontSize:13,color:"#e2e8f0",outline:"none",marginBottom:10,boxSizing:"border-box"}}>
+                        {opts.map(o=><option key={o.id} value={o.id}>{o.label}</option>)}
+                      </select>
+                      <div style={{background:"rgba(59,130,246,0.08)",border:"1px solid rgba(59,130,246,0.15)",borderRadius:10,padding:"12px 14px",marginBottom:10,display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+                        <div>
+                          <div style={{fontSize:11,color:"#6b7280",marginBottom:2}}>ADD</div>
+                          <div style={{fontSize:26,fontWeight:800,color:"#60a5fa",lineHeight:1}}>{dose}</div>
+                          <div style={{fontSize:12,color:"#94a3b8"}}>{selOpt?.unit} — {selOpt?.label}</div>
+                        </div>
+                        <div style={{fontSize:10,color:"#374151",textAlign:"right"}}>Based on<br/>{pool.size}</div>
+                      </div>
+                      <button onClick={()=>setAddedChems(v=>({...v,[param.key]:!v[param.key]}))} style={{width:"100%",background:added?"rgba(34,197,94,0.12)":"rgba(255,255,255,0.04)",border:`2px solid ${added?"rgba(34,197,94,0.5)":"rgba(255,255,255,0.08)"}`,borderRadius:10,padding:"11px",fontSize:14,fontWeight:700,color:added?"#22c55e":"#6b7280",cursor:"pointer"}}>{added?"✓ Added — tap to undo":"Tap when added"}</button>
+                    </div>
+                  )}
+                  {s!=="ok"&&opts.length===0&&<div style={{borderTop:"1px solid rgba(255,255,255,0.06)",paddingTop:10,fontSize:12,color:"#9ca3af"}}>Dilution recommended — partial drain/refill</div>}
+                </div>
+              );
+            })}
+            <button onClick={()=>setStep("checklist")} style={{width:"100%",background:"linear-gradient(135deg,#3b82f6,#06b6d4)",border:"none",borderRadius:14,padding:"14px",fontSize:15,fontWeight:700,color:"#fff",cursor:"pointer",marginTop:4}}>Next: Service Checklist →</button>
           </>
         )}
         {step==="checklist"&&(
