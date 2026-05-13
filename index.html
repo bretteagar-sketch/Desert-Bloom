@@ -430,6 +430,8 @@ function ServiceVisit({pool,filterEvery,twilio,currentUser,onComplete,onBack,onL
   const [finishing,setFinishing]=useState(false);
   const [selectedChems,setSelectedChems]=useState({});
   const [addedChems,setAddedChems]=useState({});
+  const [showDosingModal,setShowDosingModal]=useState(false);
+  const [chemAddedAmounts,setChemAddedAmounts]=useState({});
 
   const filterDue=pool.filterVisits>=filterEvery;
   const required=CHECKLIST.filter(i=>!i.isFilter||filterDue);
@@ -450,7 +452,22 @@ function ServiceVisit({pool,filterEvery,twilio,currentUser,onComplete,onBack,onL
     const updated={...pool,ph,chlorine:cl,alkalinity:alk,calcium:cal,notes:chem.notes||pool.notes,status:"Completed",lastService:todayStr(),photos:[...pool.photos,...beforePhotos],afterPhotos:[...afterPhotos],visits:pool.visits+1,filterVisits:filterDone?0:pool.filterVisits+1,lastDuration:elapsed};
     onLogVisit({customer:pool.customer,tech:currentUser.name,duration:elapsed,ph,chlorine:cl,alkalinity:alk,calcium:cal,notes:chem.notes,filterCleaned:filterDone,beforePhotos:beforePhotos.length,afterPhotos:afterPhotos.length});
     if(twilio?.sid&&pool.phone){
-      const body=`Hi ${pool.customer.split(" ")[0]}! ✅ Your Desert Bloom pool service is complete!\n\n💧 Chemistry:\n• pH: ${ph}\n• Chlorine: ${cl} ppm\n• Alkalinity: ${alk} ppm\n\nDuration: ${fmtTime(elapsed)}\n🌵 — Desert Bloom`;
+      const chemLog=[
+        {key:"ph",label:"pH",unit:""},
+        {key:"chlorine",label:"Chlorine",unit:" ppm"},
+        {key:"alkalinity",label:"Alkalinity",unit:" ppm"},
+        {key:"calcium",label:"Calcium",unit:" ppm"},
+        ...(pool.salt?[{key:"salt",label:"Salt",unit:" ppm"}]:[]),
+      ].map(p=>{
+        const amt=chemAddedAmounts[p.key];if(!amt)return null;
+        const v=parseFloat(chem[p.key])||pool[p.key]||0;const [lo,hi]=(CR[p.key]||[2700,3400]);
+        const s=v<lo?"low":v>hi?"high":"ok";
+        const opts=CHEM_OPTIONS[`${p.key}_${s}`]||[];
+        const selId=selectedChems[p.key]||(opts[0]?.id||"");
+        const selOpt=opts.find(o=>o.id===selId)||opts[0];
+        return `• ${p.label}: ${amt} ${selOpt?.unit||""} of ${selOpt?.label||""}`;
+      }).filter(Boolean).join("\n");
+      const body=`Hi ${pool.customer.split(" ")[0]}! ✅ Your Desert Bloom pool service is complete!\n\n💧 Chemistry:\n• pH: ${ph}\n• Chlorine: ${cl} ppm\n• Alkalinity: ${alk} ppm\n${chemLog?`\n🧪 Chemicals Added:\n${chemLog}\n`:""}\nDuration: ${fmtTime(elapsed)}\n🌵 — Desert Bloom`;
       try{ await sendSMS(pool.phone,body,twilio); }catch{}
     }
     setFinishing(false);onComplete(updated);setStep("done");
@@ -466,7 +483,7 @@ function ServiceVisit({pool,filterEvery,twilio,currentUser,onComplete,onBack,onL
     </div>
   );
 
-  const stepList=["before_photos","chemicals","chem_dosing","checklist","after_photos"];
+  const stepList=["before_photos","chemicals","checklist","after_photos"];
   const stepIdx=stepList.indexOf(step);
 
   return(
@@ -525,62 +542,71 @@ function ServiceVisit({pool,filterEvery,twilio,currentUser,onComplete,onBack,onL
               {pool.salt&&<div style={{marginBottom:10}}><div style={{fontSize:11,color:"#6b7280",marginBottom:4}}>SALT (PPM)</div><input value={chem.salt} onChange={e=>setChem(v=>({...v,salt:e.target.value}))} placeholder="3200" style={{width:"100%",background:"#111827",border:"1px solid rgba(255,255,255,0.08)",borderRadius:8,padding:"9px 10px",fontSize:13,color:"#e2e8f0",outline:"none",boxSizing:"border-box"}}/></div>}
               <div><div style={{fontSize:11,color:"#6b7280",marginBottom:4}}>CHEMICALS ADDED / NOTES</div><textarea value={chem.notes} onChange={e=>setChem(v=>({...v,notes:e.target.value}))} placeholder="e.g. Added 2 lbs shock..." style={{width:"100%",background:"#111827",border:"1px solid rgba(255,255,255,0.08)",borderRadius:8,padding:"9px 10px",fontSize:13,color:"#e2e8f0",outline:"none",resize:"none",height:70,boxSizing:"border-box"}}/></div>
             </Card>
-            <button onClick={()=>setStep("chem_dosing")} style={{width:"100%",background:"linear-gradient(135deg,#3b82f6,#06b6d4)",border:"none",borderRadius:14,padding:"14px",fontSize:15,fontWeight:700,color:"#fff",cursor:"pointer"}}>Next: Chemical Dosing →</button>
+            <button onClick={()=>setShowDosingModal(true)} style={{width:"100%",background:"linear-gradient(135deg,#3b82f6,#06b6d4)",border:"none",borderRadius:14,padding:"14px",fontSize:15,fontWeight:700,color:"#fff",cursor:"pointer"}}>Analyze Chemistry →</button>
           </>
         )}
-        {step==="chem_dosing"&&(
-          <>
-            <div style={{fontSize:16,fontWeight:700,marginBottom:4}}>🧪 Chemical Dosing</div>
-            <div style={{fontSize:13,color:"#6b7280",marginBottom:14}}>{pool.size} · Select chemical, add it, then check it off</div>
-            {[
-              {key:"ph",        label:"pH",               unit:"",     range:CR.ph},
-              {key:"chlorine",  label:"Chlorine",          unit:" ppm", range:CR.chlorine},
-              {key:"alkalinity",label:"Alkalinity",        unit:" ppm", range:CR.alkalinity},
-              {key:"calcium",   label:"Calcium Hardness",  unit:" ppm", range:CR.calcium},
-              ...(pool.salt?[{key:"salt",label:"Salt",unit:" ppm",range:[2700,3400]}]:[]),
-            ].map(param=>{
-              const val=parseFloat(chem[param.key])||pool[param.key]||0;
-              const [lo,hi]=param.range;
-              const s=val<lo?"low":val>hi?"high":"ok";
-              const diff=s==="low"?+(lo-val).toFixed(2):s==="high"?+(val-hi).toFixed(2):0;
-              const gal=parseGallons(pool.size);
-              const opts=CHEM_OPTIONS[`${param.key}_${s}`]||[];
-              const selId=selectedChems[param.key]||(opts[0]?.id||"");
-              const selOpt=opts.find(o=>o.id===selId)||opts[0];
-              const dose=selOpt?selOpt.formula(diff,gal):0;
-              const added=!!addedChems[param.key];
-              return(
-                <div key={param.key} style={{background:"#0d1626",borderRadius:14,padding:"14px 16px",marginBottom:10,border:`1px solid ${s==="ok"?"rgba(34,197,94,0.2)":s==="low"?"rgba(239,68,68,0.3)":"rgba(245,166,35,0.3)"}`}}>
-                  <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:s!=="ok"?10:0}}>
-                    <div>
-                      <div style={{fontSize:13,fontWeight:700,color:"#e2e8f0"}}>{param.label}</div>
-                      <div style={{fontSize:12,color:"#6b7280"}}>Reading: <span style={{fontWeight:700,color:s==="ok"?"#22c55e":s==="low"?"#ef4444":"#f5a623"}}>{val}{param.unit}</span><span style={{color:"#4b5563"}}> · Target {lo}–{hi}{param.unit}</span></div>
-                    </div>
-                    <span style={{fontSize:11,fontWeight:700,padding:"3px 10px",borderRadius:20,background:s==="ok"?"rgba(34,197,94,0.15)":s==="low"?"rgba(239,68,68,0.15)":"rgba(245,166,35,0.15)",color:s==="ok"?"#22c55e":s==="low"?"#ef4444":"#f5a623"}}>{s==="ok"?"✓ OK":s==="low"?"▼ LOW":"▲ HIGH"}</span>
-                  </div>
-                  {s!=="ok"&&opts.length>0&&(
-                    <div style={{borderTop:"1px solid rgba(255,255,255,0.06)",paddingTop:10}}>
-                      <div style={{fontSize:11,color:"#6b7280",marginBottom:8}}>Off by <span style={{color:"#f5a623",fontWeight:700}}>{diff}{param.unit}</span></div>
-                      <select value={selId} onChange={e=>setSelectedChems(v=>({...v,[param.key]:e.target.value}))} style={{width:"100%",background:"#111827",border:"1px solid rgba(255,255,255,0.1)",borderRadius:8,padding:"9px 10px",fontSize:13,color:"#e2e8f0",outline:"none",marginBottom:10,boxSizing:"border-box"}}>
-                        {opts.map(o=><option key={o.id} value={o.id}>{o.label}</option>)}
-                      </select>
-                      <div style={{background:"rgba(59,130,246,0.08)",border:"1px solid rgba(59,130,246,0.15)",borderRadius:10,padding:"12px 14px",marginBottom:10,display:"flex",justifyContent:"space-between",alignItems:"center"}}>
-                        <div>
-                          <div style={{fontSize:11,color:"#6b7280",marginBottom:2}}>ADD</div>
-                          <div style={{fontSize:26,fontWeight:800,color:"#60a5fa",lineHeight:1}}>{dose}</div>
-                          <div style={{fontSize:12,color:"#94a3b8"}}>{selOpt?.unit} — {selOpt?.label}</div>
-                        </div>
-                        <div style={{fontSize:10,color:"#374151",textAlign:"right"}}>Based on<br/>{pool.size}</div>
+        {showDosingModal&&(
+          <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.93)",zIndex:9999,overflowY:"auto"}}>
+            <div style={{background:"#060d1a",minHeight:"100vh",padding:"16px 16px 50px"}}>
+              <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:4}}>
+                <div style={{fontSize:18,fontWeight:700}}>🧪 Chemistry Analysis</div>
+                <div style={{fontSize:12,color:"#6b7280"}}>{pool.size}</div>
+              </div>
+              <div style={{fontSize:13,color:"#6b7280",marginBottom:16}}>Review what's needed, select your chemical, and log what you actually added</div>
+              {[
+                {key:"ph",        label:"pH",              unit:"",     range:CR.ph},
+                {key:"chlorine",  label:"Chlorine",         unit:" ppm", range:CR.chlorine},
+                {key:"alkalinity",label:"Alkalinity",       unit:" ppm", range:CR.alkalinity},
+                {key:"calcium",   label:"Calcium Hardness", unit:" ppm", range:CR.calcium},
+                ...(pool.salt?[{key:"salt",label:"Salt",unit:" ppm",range:[2700,3400]}]:[]),
+              ].map(param=>{
+                const val=parseFloat(chem[param.key])||pool[param.key]||0;
+                const [lo,hi]=param.range;
+                const s=val<lo?"low":val>hi?"high":"ok";
+                const diff=s==="low"?+(lo-val).toFixed(2):s==="high"?+(val-hi).toFixed(2):0;
+                const gal=parseGallons(pool.size);
+                const opts=CHEM_OPTIONS[`${param.key}_${s}`]||[];
+                const selId=selectedChems[param.key]||(opts[0]?.id||"");
+                const selOpt=opts.find(o=>o.id===selId)||opts[0];
+                const dose=selOpt?selOpt.formula(diff,gal):0;
+                const addedAmt=chemAddedAmounts[param.key]||"";
+                return(
+                  <div key={param.key} style={{background:"#0d1626",borderRadius:14,padding:"14px 16px",marginBottom:10,border:`1px solid ${s==="ok"?"rgba(34,197,94,0.2)":s==="low"?"rgba(239,68,68,0.3)":"rgba(245,166,35,0.3)"}`}}>
+                    <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:s!=="ok"?10:0}}>
+                      <div>
+                        <div style={{fontSize:13,fontWeight:700,color:"#e2e8f0"}}>{param.label}</div>
+                        <div style={{fontSize:12,color:"#6b7280"}}>Reading: <span style={{fontWeight:700,color:s==="ok"?"#22c55e":s==="low"?"#ef4444":"#f5a623"}}>{val}{param.unit}</span><span style={{color:"#4b5563"}}> · Target {lo}–{hi}{param.unit}</span></div>
                       </div>
-                      <button onClick={()=>setAddedChems(v=>({...v,[param.key]:!v[param.key]}))} style={{width:"100%",background:added?"rgba(34,197,94,0.12)":"rgba(255,255,255,0.04)",border:`2px solid ${added?"rgba(34,197,94,0.5)":"rgba(255,255,255,0.08)"}`,borderRadius:10,padding:"11px",fontSize:14,fontWeight:700,color:added?"#22c55e":"#6b7280",cursor:"pointer"}}>{added?"✓ Added — tap to undo":"Tap when added"}</button>
+                      <span style={{fontSize:11,fontWeight:700,padding:"3px 10px",borderRadius:20,background:s==="ok"?"rgba(34,197,94,0.15)":s==="low"?"rgba(239,68,68,0.15)":"rgba(245,166,35,0.15)",color:s==="ok"?"#22c55e":s==="low"?"#ef4444":"#f5a623"}}>{s==="ok"?"✓ OK":s==="low"?"▼ LOW":"▲ HIGH"}</span>
                     </div>
-                  )}
-                  {s!=="ok"&&opts.length===0&&<div style={{borderTop:"1px solid rgba(255,255,255,0.06)",paddingTop:10,fontSize:12,color:"#9ca3af"}}>Dilution recommended — partial drain/refill</div>}
-                </div>
-              );
-            })}
-            <button onClick={()=>setStep("checklist")} style={{width:"100%",background:"linear-gradient(135deg,#3b82f6,#06b6d4)",border:"none",borderRadius:14,padding:"14px",fontSize:15,fontWeight:700,color:"#fff",cursor:"pointer",marginTop:4}}>Next: Service Checklist →</button>
-          </>
+                    {s!=="ok"&&opts.length>0&&(
+                      <div style={{borderTop:"1px solid rgba(255,255,255,0.06)",paddingTop:10}}>
+                        <div style={{fontSize:11,color:"#6b7280",marginBottom:8}}>Off by <span style={{color:"#f5a623",fontWeight:700}}>{diff}{param.unit}</span></div>
+                        <select value={selId} onChange={e=>setSelectedChems(v=>({...v,[param.key]:e.target.value}))} style={{width:"100%",background:"#111827",border:"1px solid rgba(255,255,255,0.1)",borderRadius:8,padding:"9px 10px",fontSize:13,color:"#e2e8f0",outline:"none",marginBottom:10,boxSizing:"border-box"}}>
+                          {opts.map(o=><option key={o.id} value={o.id}>{o.label}</option>)}
+                        </select>
+                        <div style={{background:"rgba(59,130,246,0.08)",border:"1px solid rgba(59,130,246,0.15)",borderRadius:10,padding:"12px 14px",marginBottom:10,display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+                          <div>
+                            <div style={{fontSize:11,color:"#6b7280",marginBottom:2}}>RECOMMENDED DOSE</div>
+                            <div style={{fontSize:26,fontWeight:800,color:"#60a5fa",lineHeight:1}}>{dose}</div>
+                            <div style={{fontSize:12,color:"#94a3b8"}}>{selOpt?.unit} of {selOpt?.label}</div>
+                          </div>
+                          <div style={{fontSize:10,color:"#374151",textAlign:"right"}}>Based on<br/>{pool.size}</div>
+                        </div>
+                        <div style={{fontSize:11,color:"#6b7280",marginBottom:6,letterSpacing:1}}>HOW MUCH DID YOU ADD?</div>
+                        <div style={{display:"flex",gap:8,alignItems:"center"}}>
+                          <input type="number" inputMode="decimal" value={addedAmt} onChange={e=>setChemAddedAmounts(v=>({...v,[param.key]:e.target.value}))} placeholder={String(dose)} style={{flex:1,background:"#111827",border:`1px solid ${addedAmt?"rgba(34,197,94,0.4)":"rgba(255,255,255,0.1)"}`,borderRadius:8,padding:"10px 12px",fontSize:16,fontWeight:700,color:"#e2e8f0",outline:"none",boxSizing:"border-box"}}/>
+                          <span style={{fontSize:13,color:"#6b7280",minWidth:55}}>{selOpt?.unit}</span>
+                        </div>
+                      </div>
+                    )}
+                    {s!=="ok"&&opts.length===0&&<div style={{borderTop:"1px solid rgba(255,255,255,0.06)",paddingTop:10,fontSize:12,color:"#9ca3af"}}>Dilution recommended — partial drain/refill</div>}
+                  </div>
+                );
+              })}
+              <button onClick={()=>{setShowDosingModal(false);setStep("checklist");}} style={{width:"100%",background:"linear-gradient(135deg,#3b82f6,#06b6d4)",border:"none",borderRadius:14,padding:"15px",fontSize:15,fontWeight:700,color:"#fff",cursor:"pointer",marginTop:6}}>Next: Service Checklist →</button>
+            </div>
+          </div>
         )}
         {step==="checklist"&&(
           <>
