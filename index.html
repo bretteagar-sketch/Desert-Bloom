@@ -828,56 +828,72 @@ function RouteList({pools,onReorder,onSelect,onTimeChange,techFilter,setTechFilt
   const ALL_DAYS=["Monday","Tuesday","Wednesday","Thursday","Friday","Saturday"];
   const TODAY_NAME=["Sunday","Monday","Tuesday","Wednesday","Thursday","Friday","Saturday"][new Date().getDay()];
   const todayIdx=ALL_DAYS.indexOf(TODAY_NAME);
-  const DAYS=todayIdx>=0?[...ALL_DAYS.slice(todayIdx),...ALL_DAYS.slice(0,todayIdx)]:ALL_DAYS;
+  const startIdx=todayIdx>=0?todayIdx:0;
+  const [dayOffset,setDayOffset]=useState(0);
+  const currentDayIdx=(startIdx+dayOffset+6)%6;
+  const day=ALL_DAYS[currentDayIdx];
+  const isToday=day===TODAY_NAME;
   const fmtTime=(mins)=>{if(mins==null)return"7:00 AM";const h=Math.floor(mins/60)%12||12;const m=mins%60;const ampm=Math.floor(mins/60)<12?"AM":"PM";return`${h}:${m.toString().padStart(2,"0")} ${ampm}`;};
   const sorted=[...pools].sort((a,b)=>(a.scheduledTime??420)-(b.scheduledTime??420)||(a.order||99)-(b.order||99));
+  const dayPools=sorted.filter(p=>p.serviceDay===day);
   const techs=users.filter(u=>u.role==="tech");
-  const drop=(e,tid,dayPools)=>{e.preventDefault();if(dragging===tid){setDragging(null);setOver(null);return;}const fi=dayPools.findIndex(p=>p.id===dragging);const ti=dayPools.findIndex(p=>p.id===tid);if(fi<0||ti<0){setDragging(null);setOver(null);return;}const re=[...dayPools];const[mv]=re.splice(fi,1);re.splice(ti,0,mv);onReorder(re.map((p,i)=>({...p,order:i+1})));setDragging(null);setOver(null);};
+  const drop=(e,tid)=>{e.preventDefault();if(dragging===tid){setDragging(null);setOver(null);return;}const fi=dayPools.findIndex(p=>p.id===dragging);const ti=dayPools.findIndex(p=>p.id===tid);if(fi<0||ti<0){setDragging(null);setOver(null);return;}const re=[...dayPools];const[mv]=re.splice(fi,1);re.splice(ti,0,mv);onReorder(re.map((p,i)=>({...p,order:i+1})));setDragging(null);setOver(null);};
   return(
     <div style={{padding:"14px 16px"}}>
-      <div style={{fontSize:17,fontWeight:700,marginBottom:2}}>Route Planner</div>
-      <div style={{fontSize:12,color:"#6b7280",marginBottom:12}}>Grouped by day · tap −/+ to shift 30 min · drag ⠿ to reorder</div>
       {showFilter&&(<div style={{display:"flex",gap:6,marginBottom:14,flexWrap:"wrap"}}>
         <button onClick={()=>setTechFilter("all")} style={{background:techFilter==="all"?"#3b82f6":"#0d1626",color:techFilter==="all"?"#fff":"#9ca3af",border:`1px solid ${techFilter==="all"?"#3b82f6":"rgba(255,255,255,0.07)"}`,borderRadius:20,padding:"5px 14px",fontSize:12,fontWeight:600,cursor:"pointer"}}>All</button>
         {techs.map(t=><button key={t.id} onClick={()=>setTechFilter(t.id)} style={{background:techFilter===t.id?"#3b82f6":"#0d1626",color:techFilter===t.id?"#fff":"#9ca3af",border:`1px solid ${techFilter===t.id?"#3b82f6":"rgba(255,255,255,0.07)"}`,borderRadius:20,padding:"5px 14px",fontSize:12,fontWeight:600,cursor:"pointer"}}>{t.name.split(" ")[0]}</button>)}
       </div>)}
-      {DAYS.map(day=>{
-        const dayPools=sorted.filter(p=>p.serviceDay===day);
-        if(dayPools.length===0)return null;
-        return(
-          <div key={day} style={{marginBottom:22}}>
-            <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:10,paddingBottom:8,borderBottom:`1px solid ${day===TODAY_NAME?"rgba(34,197,94,0.35)":"rgba(59,130,246,0.25)"}`}}>
-              <span style={{fontSize:13,fontWeight:700,color:day===TODAY_NAME?"#22c55e":"#60a5fa"}}>📅 {day}</span>
-              {day===TODAY_NAME&&<span style={{fontSize:10,fontWeight:700,color:"#22c55e",background:"rgba(34,197,94,0.15)",border:"1px solid rgba(34,197,94,0.3)",borderRadius:10,padding:"2px 8px",letterSpacing:0.5}}>TODAY</span>}
-              <span style={{fontSize:11,color:"#6b7280",background:"#111827",borderRadius:10,padding:"2px 8px"}}>{dayPools.length} stop{dayPools.length!==1?"s":""}</span>
-            </div>
-            {dayPools.map((pool,i)=>(
-              <div key={pool.id} draggable onDragStart={e=>{setDragging(pool.id);e.dataTransfer.effectAllowed="move";}} onDragOver={e=>{e.preventDefault();setOver(pool.id);}} onDrop={e=>drop(e,pool.id,dayPools)} onDragEnd={()=>{setDragging(null);setOver(null);}} style={{background:over===pool.id?"rgba(59,130,246,0.1)":"#0d1626",borderRadius:13,padding:"12px 14px",marginBottom:8,border:`2px solid ${dragging===pool.id?"#3b82f6":over===pool.id?"rgba(59,130,246,0.4)":"rgba(255,255,255,0.04)"}`,opacity:dragging===pool.id?0.4:1,userSelect:"none"}}>
-                <div style={{display:"flex",gap:10,alignItems:"flex-start"}}>
-                  <div style={{display:"flex",flexDirection:"column",alignItems:"center",gap:3,paddingTop:2,cursor:"grab"}}>
-                    <span style={{fontSize:14,color:"#374151"}}>⠿</span>
-                    <div style={{width:24,height:24,borderRadius:50,background:pool.status==="Completed"?"#22c55e":"#1f2937",display:"flex",alignItems:"center",justifyContent:"center",fontSize:10,fontWeight:700,color:pool.status==="Completed"?"#fff":"#6b7280"}}>{pool.status==="Completed"?"✓":i+1}</div>
+      {/* Day navigator */}
+      <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:16,background:"#0d1626",borderRadius:14,padding:"12px 14px",border:`1px solid ${isToday?"rgba(34,197,94,0.3)":"rgba(255,255,255,0.06)"}`}}>
+        <button onClick={()=>setDayOffset(o=>o-1)} style={{background:"#1f2937",border:"1px solid rgba(255,255,255,0.1)",borderRadius:10,width:36,height:36,fontSize:18,color:"#9ca3af",cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center"}}>‹</button>
+        <div style={{textAlign:"center"}}>
+          <div style={{display:"flex",alignItems:"center",justifyContent:"center",gap:8}}>
+            <span style={{fontSize:20,fontWeight:800,color:isToday?"#22c55e":"#f1f5f9"}}>📅 {day}</span>
+            {isToday&&<span style={{fontSize:10,fontWeight:700,color:"#22c55e",background:"rgba(34,197,94,0.15)",border:"1px solid rgba(34,197,94,0.3)",borderRadius:10,padding:"3px 9px",letterSpacing:0.6}}>TODAY</span>}
+          </div>
+          <div style={{fontSize:11,color:"#6b7280",marginTop:3}}>{dayPools.length} stop{dayPools.length!==1?"s":""} · tap arrows to switch days</div>
+          <div style={{display:"flex",justifyContent:"center",gap:4,marginTop:8}}>
+            {ALL_DAYS.map((d,i)=><div key={d} style={{width:6,height:6,borderRadius:3,background:i===currentDayIdx?(isToday?"#22c55e":"#3b82f6"):"#1f2937",border:`1px solid ${i===currentDayIdx?(isToday?"#22c55e":"#3b82f6"):"rgba(255,255,255,0.1)"}`}}/>)}
+          </div>
+        </div>
+        <button onClick={()=>setDayOffset(o=>o+1)} style={{background:"#1f2937",border:"1px solid rgba(255,255,255,0.1)",borderRadius:10,width:36,height:36,fontSize:18,color:"#9ca3af",cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center"}}>›</button>
+      </div>
+      {dayPools.length===0?(
+        <div style={{textAlign:"center",padding:"40px 20px",color:"#374151",fontSize:13}}>
+          <div style={{fontSize:32,marginBottom:10}}>🌵</div>
+          <div style={{fontWeight:600,marginBottom:4}}>No stops on {day}</div>
+          <div style={{fontSize:12,color:"#4b5563"}}>Use the arrows to check other days</div>
+        </div>
+      ):(
+        <div>
+          <div style={{fontSize:11,color:"#6b7280",marginBottom:10}}>Drag ⠿ to reorder · tap −/+ to adjust time</div>
+          {dayPools.map((pool,i)=>(
+            <div key={pool.id} draggable onDragStart={e=>{setDragging(pool.id);e.dataTransfer.effectAllowed="move";}} onDragOver={e=>{e.preventDefault();setOver(pool.id);}} onDrop={e=>drop(e,pool.id)} onDragEnd={()=>{setDragging(null);setOver(null);}} style={{background:over===pool.id?"rgba(59,130,246,0.1)":"#0d1626",borderRadius:13,padding:"12px 14px",marginBottom:8,border:`2px solid ${dragging===pool.id?"#3b82f6":over===pool.id?"rgba(59,130,246,0.4)":"rgba(255,255,255,0.04)"}`,opacity:dragging===pool.id?0.4:1,userSelect:"none"}}>
+              <div style={{display:"flex",gap:10,alignItems:"flex-start"}}>
+                <div style={{display:"flex",flexDirection:"column",alignItems:"center",gap:3,paddingTop:2,cursor:"grab"}}>
+                  <span style={{fontSize:14,color:"#374151"}}>⠿</span>
+                  <div style={{width:24,height:24,borderRadius:50,background:pool.status==="Completed"?"#22c55e":"#1f2937",display:"flex",alignItems:"center",justifyContent:"center",fontSize:10,fontWeight:700,color:pool.status==="Completed"?"#fff":"#6b7280"}}>{pool.status==="Completed"?"✓":i+1}</div>
+                </div>
+                <div style={{flex:1}}>
+                  <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:6}}><div style={{fontWeight:600,fontSize:14}}>{pool.customer}</div><Badge status={pool.status}/></div>
+                  <div style={{display:"flex",alignItems:"center",gap:6,marginBottom:7}}>
+                    <button onClick={e=>{e.stopPropagation();onTimeChange&&onTimeChange(pool.id,Math.max(360,(pool.scheduledTime??420)-30));}} style={{background:"#1f2937",border:"1px solid rgba(255,255,255,0.1)",borderRadius:6,padding:"4px 10px",fontSize:11,color:"#9ca3af",cursor:"pointer",fontWeight:600}}>−30m</button>
+                    <span style={{fontSize:12,fontWeight:700,color:"#e2e8f0",background:"#111827",borderRadius:8,padding:"4px 12px",minWidth:74,textAlign:"center",letterSpacing:0.3}}>{fmtTime(pool.scheduledTime??420)}</span>
+                    <button onClick={e=>{e.stopPropagation();onTimeChange&&onTimeChange(pool.id,Math.min(1380,(pool.scheduledTime??420)+30));}} style={{background:"#1f2937",border:"1px solid rgba(255,255,255,0.1)",borderRadius:6,padding:"4px 10px",fontSize:11,color:"#9ca3af",cursor:"pointer",fontWeight:600}}>+30m</button>
                   </div>
-                  <div style={{flex:1}}>
-                    <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:6}}><div style={{fontWeight:600,fontSize:14}}>{pool.customer}</div><Badge status={pool.status}/></div>
-                    <div style={{display:"flex",alignItems:"center",gap:6,marginBottom:7}}>
-                      <button onClick={e=>{e.stopPropagation();onTimeChange&&onTimeChange(pool.id,Math.max(360,(pool.scheduledTime??420)-30));}} style={{background:"#1f2937",border:"1px solid rgba(255,255,255,0.1)",borderRadius:6,padding:"4px 9px",fontSize:11,color:"#9ca3af",cursor:"pointer",fontWeight:600}}>−30m</button>
-                      <span style={{fontSize:12,fontWeight:700,color:"#e2e8f0",background:"#111827",borderRadius:8,padding:"4px 12px",minWidth:74,textAlign:"center",letterSpacing:0.3}}>{fmtTime(pool.scheduledTime??420)}</span>
-                      <button onClick={e=>{e.stopPropagation();onTimeChange&&onTimeChange(pool.id,Math.min(1380,(pool.scheduledTime??420)+30));}} style={{background:"#1f2937",border:"1px solid rgba(255,255,255,0.1)",borderRadius:6,padding:"4px 9px",fontSize:11,color:"#9ca3af",cursor:"pointer",fontWeight:600}}>+30m</button>
-                    </div>
-                    <button onClick={e=>{e.stopPropagation();openMaps(pool.address);}} style={{fontSize:12,color:"#60a5fa",background:"none",border:"none",cursor:"pointer",padding:0,textDecoration:"underline",textAlign:"left",marginBottom:6}}>📍 {pool.address.split(",")[0]}</button>
-                    <div style={{display:"flex",gap:6,flexWrap:"wrap",marginTop:2}}>
-                      <span style={{fontSize:11,background:"#111827",color:"#9ca3af",borderRadius:6,padding:"2px 7px"}}>{users.find(u=>u.id===pool.tech)?.name||pool.tech}</span>
-                      {pool.monthlyRate&&<span style={{fontSize:11,background:"rgba(34,197,94,0.1)",color:"#22c55e",borderRadius:6,padding:"2px 7px"}}>{fmtMoney(pool.monthlyRate)}/mo</span>}
-                      <button onClick={e=>{e.stopPropagation();onSelect(pool);}} style={{fontSize:11,background:"rgba(59,130,246,0.1)",border:"1px solid rgba(59,130,246,0.2)",color:"#60a5fa",borderRadius:6,padding:"2px 8px",cursor:"pointer"}}>Details</button>
-                    </div>
+                  <button onClick={e=>{e.stopPropagation();openMaps(pool.address);}} style={{fontSize:12,color:"#60a5fa",background:"none",border:"none",cursor:"pointer",padding:0,textDecoration:"underline",textAlign:"left",marginBottom:6}}>📍 {pool.address.split(",")[0]}</button>
+                  <div style={{display:"flex",gap:6,flexWrap:"wrap",marginTop:2}}>
+                    <span style={{fontSize:11,background:"#111827",color:"#9ca3af",borderRadius:6,padding:"2px 7px"}}>{users.find(u=>u.id===pool.tech)?.name||pool.tech}</span>
+                    {pool.monthlyRate&&<span style={{fontSize:11,background:"rgba(34,197,94,0.1)",color:"#22c55e",borderRadius:6,padding:"2px 7px"}}>{fmtMoney(pool.monthlyRate)}/mo</span>}
+                    <button onClick={e=>{e.stopPropagation();onSelect(pool);}} style={{fontSize:11,background:"rgba(59,130,246,0.1)",border:"1px solid rgba(59,130,246,0.2)",color:"#60a5fa",borderRadius:6,padding:"2px 8px",cursor:"pointer"}}>Details</button>
                   </div>
                 </div>
               </div>
-            ))}
-          </div>
-        );
-      })}
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   );
 }
