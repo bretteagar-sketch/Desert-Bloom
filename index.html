@@ -953,6 +953,7 @@ function DesertBloom(){
   const [filterSaved,setFilterSaved]=useState(false);
   const [twilioTest,setTwilioTest]=useState(null);
   const [twilioTesting,setTwilioTesting]=useState(false);
+  const [showToken,setShowToken]=useState(false);
 
   useEffect(()=>{
     DB.getAll().then(data=>{
@@ -1192,7 +1193,15 @@ function DesertBloom(){
           <Card style={{marginBottom:14}}>
             <div style={{fontSize:13,fontWeight:700,marginBottom:12}}>📱 Twilio SMS</div>
             {twilio.sid&&<div style={{fontSize:12,color:"#22c55e",marginBottom:10}}>✓ Configured · {twilio.from}</div>}
-            {[["ACCOUNT SID","sid","AC...","text"],["AUTH TOKEN","token","Your auth token","password"],["FROM NUMBER","from","+14805715896","text"]].map(([l,k,ph,type])=>(<div key={k} style={{marginBottom:12}}><div style={{fontSize:11,color:"#6b7280",marginBottom:4,letterSpacing:1}}>{l}</div><input type={type} value={twilio[k]} onChange={e=>setTwilio(v=>({...v,[k]:e.target.value}))} placeholder={ph} style={{width:"100%",background:"#111827",border:"1px solid rgba(255,255,255,0.08)",borderRadius:9,padding:"10px 13px",fontSize:13,color:"#e2e8f0",outline:"none",boxSizing:"border-box",fontFamily:"monospace"}}/></div>))}
+            {[["ACCOUNT SID","sid","AC..."],["FROM NUMBER","from","+14805715896"]].map(([l,k,ph])=>(<div key={k} style={{marginBottom:12}}><div style={{fontSize:11,color:"#6b7280",marginBottom:4,letterSpacing:1}}>{l}</div><input type="text" value={twilio[k]} onChange={e=>setTwilio(v=>({...v,[k]:e.target.value}))} placeholder={ph} style={{width:"100%",background:"#111827",border:"1px solid rgba(255,255,255,0.08)",borderRadius:9,padding:"10px 13px",fontSize:13,color:"#e2e8f0",outline:"none",boxSizing:"border-box",fontFamily:"monospace"}}/></div>))}
+            <div style={{marginBottom:12}}>
+              <div style={{fontSize:11,color:"#6b7280",marginBottom:4,letterSpacing:1}}>AUTH TOKEN</div>
+              <div style={{display:"flex",gap:8,alignItems:"center"}}>
+                <input type={showToken?"text":"password"} value={twilio.token} onChange={e=>setTwilio(v=>({...v,token:e.target.value}))} placeholder="Your auth token" autoComplete="off" style={{flex:1,background:"#111827",border:"1px solid rgba(255,255,255,0.08)",borderRadius:9,padding:"10px 13px",fontSize:13,color:"#e2e8f0",outline:"none",boxSizing:"border-box",fontFamily:"monospace"}}/>
+                <button onClick={()=>setShowToken(v=>!v)} style={{background:"rgba(255,255,255,0.06)",border:"1px solid rgba(255,255,255,0.1)",borderRadius:8,padding:"8px 12px",fontSize:12,color:"#9ca3af",cursor:"pointer",whiteSpace:"nowrap"}}>{showToken?"Hide":"Show"}</button>
+              </div>
+              {twilio.token&&<div style={{fontSize:11,color:"#374151",marginTop:4}}>Length: {twilio.token.length} chars {twilio.token.length===32?"✓ looks right":"⚠️ should be 32"}</div>}
+            </div>
             <button onClick={()=>saveTwilio(twilio)} style={{width:"100%",background:"linear-gradient(135deg,#3b82f6,#06b6d4)",border:"none",borderRadius:12,padding:"12px",fontSize:14,fontWeight:700,color:"#fff",cursor:"pointer",marginBottom:8}}>Save to Google Sheets</button>
             <button onClick={testTwilio} disabled={twilioTesting||!twilio.sid} style={{width:"100%",background:twilioTesting?"#1f2937":"rgba(255,255,255,0.05)",border:"1px solid rgba(255,255,255,0.1)",borderRadius:12,padding:"12px",fontSize:14,fontWeight:700,color:twilioTesting||!twilio.sid?"#374151":"#9ca3af",cursor:twilio.sid?"pointer":"not-allowed"}}>{twilioTesting?"⏳ Testing...":"🔌 Test Connection"}</button>
             {twilioSaved&&<div style={{marginTop:10,background:"rgba(34,197,94,0.1)",border:"1px solid rgba(34,197,94,0.3)",borderRadius:10,padding:"10px",textAlign:"center",color:"#22c55e",fontWeight:700,fontSize:13}}>✓ Saved!</div>}
