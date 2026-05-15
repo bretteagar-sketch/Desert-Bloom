@@ -380,6 +380,209 @@ function PoolVolumeCalc() {
   );
 }
 
+// ── STANDALONE CHEM DOSE CALCULATOR ──────────────────────────────────────────
+function ChemDoseCalc({pools=[]}){
+  const [gallons,setGallons]=useState("");
+  const [r,setR]=useState({ph:"",chlorine:"",alkalinity:"",calcium:"",salt:""});
+  const [hasSalt,setHasSalt]=useState(false);
+  const [selPool,setSelPool]=useState("");
+  const [selChems,setSelChems]=useState({});
+  const s=(k,v)=>setR(x=>({...x,[k]:v}));
+  const pickPool=(id)=>{
+    const p=pools.find(x=>String(x.id)===id);
+    if(p){setGallons(String(parseGallons(p.size)));setR({ph:p.ph!=null?String(p.ph):"",chlorine:p.chlorine!=null?String(p.chlorine):"",alkalinity:p.alkalinity!=null?String(p.alkalinity):"",calcium:p.calcium!=null?String(p.calcium):"",salt:p.salt!=null?String(p.salt):""});setHasSalt(!!p.salt);}
+    setSelPool(id);
+  };
+  const gal=parseFloat(gallons)||10000;
+  const params=[
+    {key:"ph",label:"pH",unit:"",range:CR.ph},
+    {key:"chlorine",label:"Chlorine",unit:" ppm",range:CR.chlorine},
+    {key:"alkalinity",label:"Alkalinity",unit:" ppm",range:CR.alkalinity},
+    {key:"calcium",label:"Calcium Hardness",unit:" ppm",range:CR.calcium},
+    ...(hasSalt?[{key:"salt",label:"Salt",unit:" ppm",range:[2700,3400]}]:[]),
+  ];
+  return(
+    <div style={{padding:"16px",paddingBottom:40}}>
+      <div style={{fontSize:18,fontWeight:700,marginBottom:2}}>🧪 Chem Calculator</div>
+      <div style={{fontSize:13,color:"#4b5563",marginBottom:14}}>Enter readings to get recommended doses</div>
+      {pools.length>0&&(
+        <Card style={{marginBottom:12}}>
+          <div style={{fontSize:11,fontWeight:700,color:"#6b7280",marginBottom:8,letterSpacing:1}}>QUICK-FILL FROM ACCOUNT</div>
+          <select value={selPool} onChange={e=>pickPool(e.target.value)} style={{width:"100%",background:"#111827",border:"1px solid rgba(255,255,255,0.1)",borderRadius:8,padding:"10px 12px",fontSize:13,color:"#e2e8f0",outline:"none",boxSizing:"border-box"}}>
+            <option value="">— Select a pool to pre-fill —</option>
+            {pools.map(p=><option key={p.id} value={p.id}>{p.customer} ({p.size})</option>)}
+          </select>
+        </Card>
+      )}
+      <Card style={{marginBottom:12}}>
+        <Inp label="POOL SIZE (GALLONS)" value={gallons} onChange={setGallons} placeholder="10000" type="number"/>
+        <div style={{display:"flex",alignItems:"center",gap:8,marginTop:6}}>
+          <input type="checkbox" checked={hasSalt} onChange={e=>setHasSalt(e.target.checked)} id="saltChk" style={{width:16,height:16,accentColor:"#3b82f6"}}/>
+          <label htmlFor="saltChk" style={{fontSize:12,color:"#9ca3af",cursor:"pointer"}}>Salt water pool (SWG)</label>
+        </div>
+      </Card>
+      <Card style={{marginBottom:14}}>
+        <div style={{fontSize:11,fontWeight:700,color:"#6b7280",marginBottom:10,letterSpacing:1}}>CURRENT READINGS</div>
+        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10}}>
+          <Inp label="pH" value={r.ph} onChange={v=>s("ph",v)} placeholder="7.4" type="number"/>
+          <Inp label="CHLORINE (ppm)" value={r.chlorine} onChange={v=>s("chlorine",v)} placeholder="3.0" type="number"/>
+          <Inp label="ALKALINITY (ppm)" value={r.alkalinity} onChange={v=>s("alkalinity",v)} placeholder="100" type="number"/>
+          <Inp label="CALCIUM (ppm)" value={r.calcium} onChange={v=>s("calcium",v)} placeholder="250" type="number"/>
+          {hasSalt&&<Inp label="SALT (ppm)" value={r.salt} onChange={v=>s("salt",v)} placeholder="3200" type="number"/>}
+        </div>
+      </Card>
+      {params.map(param=>{
+        if(!r[param.key])return null;
+        const val=parseFloat(r[param.key]);if(isNaN(val))return null;
+        const[lo,hi]=param.range;
+        const st=val<lo?"low":val>hi?"high":"ok";
+        const diff=st==="low"?+(lo-val).toFixed(2):st==="high"?+(val-hi).toFixed(2):0;
+        const opts=CHEM_OPTIONS[`${param.key}_${st}`]||[];
+        const sid=selChems[param.key]||(opts[0]?.id||"");
+        const sopt=opts.find(o=>o.id===sid)||opts[0];
+        const dose=sopt?sopt.formula(diff,gal):0;
+        return(
+          <div key={param.key} style={{background:"#0d1626",borderRadius:14,padding:"14px 16px",marginBottom:10,border:`1px solid ${st==="ok"?"rgba(34,197,94,0.2)":st==="low"?"rgba(239,68,68,0.3)":"rgba(245,166,35,0.3)"}`}}>
+            <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:st!=="ok"?10:0}}>
+              <div>
+                <div style={{fontSize:13,fontWeight:700,color:"#e2e8f0"}}>{param.label}</div>
+                <div style={{fontSize:12,color:"#6b7280"}}>Reading: <span style={{fontWeight:700,color:st==="ok"?"#22c55e":st==="low"?"#ef4444":"#f5a623"}}>{val}{param.unit}</span><span style={{color:"#4b5563"}}> · Target {lo}–{hi}{param.unit}</span></div>
+              </div>
+              <span style={{fontSize:11,fontWeight:700,padding:"3px 10px",borderRadius:20,background:st==="ok"?"rgba(34,197,94,0.15)":st==="low"?"rgba(239,68,68,0.15)":"rgba(245,166,35,0.15)",color:st==="ok"?"#22c55e":st==="low"?"#ef4444":"#f5a623"}}>{st==="ok"?"✓ OK":st==="low"?"▼ LOW":"▲ HIGH"}</span>
+            </div>
+            {st!=="ok"&&opts.length>0&&(
+              <div style={{borderTop:"1px solid rgba(255,255,255,0.06)",paddingTop:10}}>
+                <div style={{fontSize:11,color:"#6b7280",marginBottom:8}}>Off by <span style={{color:"#f5a623",fontWeight:700}}>{diff}{param.unit}</span> · {gal.toLocaleString()} gal pool</div>
+                <select value={sid} onChange={e=>setSelChems(v=>({...v,[param.key]:e.target.value}))} style={{width:"100%",background:"#111827",border:"1px solid rgba(255,255,255,0.1)",borderRadius:8,padding:"9px 10px",fontSize:13,color:"#e2e8f0",outline:"none",marginBottom:10,boxSizing:"border-box"}}>
+                  {opts.map(o=><option key={o.id} value={o.id}>{o.label}</option>)}
+                </select>
+                <div style={{background:"rgba(59,130,246,0.08)",border:"1px solid rgba(59,130,246,0.15)",borderRadius:10,padding:"12px 14px",display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+                  <div>
+                    <div style={{fontSize:11,color:"#6b7280",marginBottom:2}}>RECOMMENDED DOSE</div>
+                    <div style={{fontSize:30,fontWeight:800,color:"#60a5fa",lineHeight:1}}>{dose}</div>
+                    <div style={{fontSize:12,color:"#94a3b8"}}>{sopt?.unit} of {sopt?.label}</div>
+                  </div>
+                  <div style={{fontSize:10,color:"#374151",textAlign:"right"}}>Based on<br/>{gal.toLocaleString()} gal</div>
+                </div>
+              </div>
+            )}
+            {st!=="ok"&&opts.length===0&&<div style={{borderTop:"1px solid rgba(255,255,255,0.06)",paddingTop:10,fontSize:12,color:"#9ca3af"}}>Dilution recommended — partial drain/refill</div>}
+          </div>
+        );
+      })}
+      {!params.some(p=>r[p.key])&&<div style={{textAlign:"center",padding:"30px 16px",color:"#374151"}}><div style={{fontSize:28,marginBottom:8}}>🧪</div><div style={{fontSize:13,color:"#6b7280"}}>Enter readings above to see recommendations</div></div>}
+    </div>
+  );
+}
+
+// ── LAB TAB (Chem Calc + Volume) ──────────────────────────────────────────────
+function LabTab({pools}){
+  const [sub,setSub]=useState("chem");
+  return(
+    <div>
+      <div style={{display:"flex",gap:6,padding:"12px 16px 0"}}>
+        <button onClick={()=>setSub("chem")} style={{background:sub==="chem"?"linear-gradient(135deg,#3b82f6,#06b6d4)":"#0d1626",border:`1px solid ${sub==="chem"?"transparent":"rgba(255,255,255,0.07)"}`,borderRadius:20,padding:"6px 16px",fontSize:12,fontWeight:700,color:sub==="chem"?"#fff":"#9ca3af",cursor:"pointer"}}>🧪 Chem Calc</button>
+        <button onClick={()=>setSub("volume")} style={{background:sub==="volume"?"linear-gradient(135deg,#3b82f6,#06b6d4)":"#0d1626",border:`1px solid ${sub==="volume"?"transparent":"rgba(255,255,255,0.07)"}`,borderRadius:20,padding:"6px 16px",fontSize:12,fontWeight:700,color:sub==="volume"?"#fff":"#9ca3af",cursor:"pointer"}}>💧 Volume</button>
+      </div>
+      {sub==="chem"?<ChemDoseCalc pools={pools}/>:<PoolVolumeCalc/>}
+    </div>
+  );
+}
+
+// ── SERVICE HISTORY REPORT ────────────────────────────────────────────────────
+function ServiceHistoryReport({pool,onBack}){
+  const MN=["January","February","March","April","May","June","July","August","September","October","November","December"];
+  const hist=(pool.serviceHistory||[]).slice().sort((a,b)=>b.date.localeCompare(a.date));
+  const byMonth={};
+  hist.forEach(h=>{const[y,m]=h.date.split("-");const k=`${y}-${m}`;if(!byMonth[k])byMonth[k]={label:`${MN[parseInt(m)-1]} ${y}`,visits:[]};byMonth[k].visits.push(h);});
+  const totalBilled=pool.monthlyRate?pool.monthlyRate*Object.keys(byMonth).length:null;
+  const RKEYS={ph:"ph",chlorine:"chlorine",alkalinity:"alkalinity",calcium:"calcium"};
+  return(
+    <div style={{fontFamily:"sans-serif",background:"#060d1a",minHeight:"100vh",color:"#e2e8f0",paddingBottom:50}}>
+      <PageHeader onBack={onBack} title="Service Report"/>
+      <div style={{padding:"14px 16px"}}>
+        <div style={{background:"linear-gradient(135deg,rgba(59,130,246,0.12),rgba(6,182,212,0.06))",border:"1px solid rgba(59,130,246,0.25)",borderRadius:16,padding:"16px",marginBottom:16}}>
+          <div style={{fontSize:19,fontWeight:800,marginBottom:2}}>{pool.customer}</div>
+          <div style={{fontSize:12,color:"#6b7280",marginBottom:10}}>{pool.address}</div>
+          <div style={{display:"flex",gap:6,flexWrap:"wrap",marginBottom:14}}>
+            {[pool.type,pool.size,`Every ${pool.serviceDay||"—"}`].map(t=><span key={t} style={{fontSize:11,background:"rgba(0,0,0,0.3)",color:"#9ca3af",borderRadius:6,padding:"3px 8px"}}>{t}</span>)}
+            {pool.monthlyRate&&<span style={{fontSize:11,background:"rgba(34,197,94,0.12)",color:"#22c55e",borderRadius:6,padding:"3px 8px"}}>{fmtMoney(pool.monthlyRate)}/mo</span>}
+          </div>
+          <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:8,textAlign:"center"}}>
+            <div style={{background:"rgba(0,0,0,0.25)",borderRadius:10,padding:"10px 6px"}}><div style={{fontSize:22,fontWeight:800,color:"#3b82f6"}}>{hist.length}</div><div style={{fontSize:10,color:"#6b7280"}}>TOTAL VISITS</div></div>
+            <div style={{background:"rgba(0,0,0,0.25)",borderRadius:10,padding:"10px 6px"}}><div style={{fontSize:22,fontWeight:800,color:"#22c55e"}}>{Object.keys(byMonth).length}</div><div style={{fontSize:10,color:"#6b7280"}}>MONTHS SERVED</div></div>
+            <div style={{background:"rgba(0,0,0,0.25)",borderRadius:10,padding:"10px 6px"}}><div style={{fontSize:22,fontWeight:800,color:"#f5a623"}}>{totalBilled?fmtMoney(totalBilled):"—"}</div><div style={{fontSize:10,color:"#6b7280"}}>TOTAL BILLED</div></div>
+          </div>
+        </div>
+        {hist.length===0?(
+          <div style={{textAlign:"center",padding:"40px 20px"}}>
+            <div style={{fontSize:36,marginBottom:10}}>📋</div>
+            <div style={{fontSize:14,fontWeight:600,color:"#6b7280"}}>No service history yet</div>
+            <div style={{fontSize:12,color:"#4b5563",marginTop:4}}>History builds as visits are completed</div>
+          </div>
+        ):(
+          Object.values(byMonth).map(month=>(
+            <div key={month.label} style={{marginBottom:20}}>
+              <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:10,paddingBottom:8,borderBottom:"1px solid rgba(59,130,246,0.2)"}}>
+                <span style={{fontSize:14,fontWeight:700,color:"#60a5fa"}}>{month.label}</span>
+                <span style={{fontSize:11,background:"rgba(59,130,246,0.1)",color:"#60a5fa",borderRadius:10,padding:"2px 8px"}}>{month.visits.length} visit{month.visits.length!==1?"s":""}</span>
+                {pool.monthlyRate&&<span style={{fontSize:12,fontWeight:700,color:"#22c55e",marginLeft:"auto"}}>{fmtMoney(pool.monthlyRate)}</span>}
+              </div>
+              {month.visits.map((v,i)=>{
+                const d=new Date(v.date+"T12:00:00");
+                const readingPairs=[["pH",v.readings?.ph,"",CR.ph],["Chlorine",v.readings?.chlorine," ppm",CR.chlorine],["Alkalinity",v.readings?.alkalinity," ppm",CR.alkalinity],["Calcium",v.readings?.calcium," ppm",CR.calcium]].filter(([,val])=>val!=null);
+                return(
+                  <div key={i} style={{background:"#0d1626",borderRadius:14,padding:"14px 16px",marginBottom:10,border:"1px solid rgba(255,255,255,0.05)"}}>
+                    <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:10}}>
+                      <div>
+                        <div style={{fontSize:14,fontWeight:700}}>{d.toLocaleDateString("en-US",{weekday:"long",month:"long",day:"numeric"})}</div>
+                        <div style={{fontSize:12,color:"#6b7280",marginTop:2}}>Tech: {v.tech||"—"}{v.duration?" · "+fmtTime(v.duration):""}</div>
+                      </div>
+                      <span style={{fontSize:10,fontWeight:700,color:"#22c55e",background:"rgba(34,197,94,0.12)",border:"1px solid rgba(34,197,94,0.25)",borderRadius:8,padding:"4px 10px",whiteSpace:"nowrap"}}>✅ DONE</span>
+                    </div>
+                    {readingPairs.length>0&&(
+                      <div style={{background:"#111827",borderRadius:10,padding:"10px 12px",marginBottom:10}}>
+                        <div style={{fontSize:10,fontWeight:700,color:"#374151",marginBottom:8,letterSpacing:0.5}}>CHEMISTRY READINGS</div>
+                        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:6}}>
+                          {readingPairs.map(([label,val,unit,range])=>{
+                            const st=range?val<range[0]?"low":val>range[1]?"high":"ok":"ok";
+                            return(<div key={label} style={{display:"flex",justifyContent:"space-between"}}><span style={{fontSize:11,color:"#6b7280"}}>{label}</span><span style={{fontSize:12,fontWeight:700,color:st==="ok"?"#22c55e":st==="low"?"#ef4444":"#f5a623"}}>{val}{unit}</span></div>);
+                          })}
+                        </div>
+                      </div>
+                    )}
+                    {((v.chemicals&&v.chemicals.length>0)||v.chlorineTabs)&&(
+                      <div>
+                        <div style={{fontSize:10,fontWeight:700,color:"#374151",marginBottom:8,letterSpacing:0.5}}>CHEMICALS ADDED</div>
+                        <div style={{display:"flex",flexWrap:"wrap",gap:6}}>
+                          {(v.chemicals||[]).map((c,j)=>(
+                            <div key={j} style={{background:"rgba(59,130,246,0.08)",border:"1px solid rgba(59,130,246,0.15)",borderRadius:8,padding:"7px 10px"}}>
+                              <div style={{fontSize:13,fontWeight:700,color:"#60a5fa"}}>{c.amount} {c.unit}</div>
+                              <div style={{fontSize:10,color:"#6b7280"}}>{c.chemical}</div>
+                            </div>
+                          ))}
+                          {v.chlorineTabs&&(
+                            <div style={{background:"rgba(245,166,35,0.08)",border:"1px solid rgba(245,166,35,0.2)",borderRadius:8,padding:"7px 10px"}}>
+                              <div style={{fontSize:13,fontWeight:700,color:"#f5a623"}}>{v.chlorineTabs} tab{v.chlorineTabs==="1"?"":"s"}</div>
+                              <div style={{fontSize:10,color:"#6b7280"}}>Chlorine Tabs</div>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    )}
+                    {(!v.chemicals||!v.chemicals.length)&&!v.chlorineTabs&&<div style={{fontSize:11,color:"#374151",fontStyle:"italic"}}>No chemicals logged this visit</div>}
+                    {v.notes&&<div style={{marginTop:8,fontSize:12,color:"#9ca3af",fontStyle:"italic"}}>"{v.notes}"</div>}
+                  </div>
+                );
+              })}
+            </div>
+          ))
+        )}
+      </div>
+    </div>
+  );
+}
+
 // ── SERVICE VISIT ─────────────────────────────────────────────────────────────
 const CHECKLIST=[
   {id:"brush",  label:"Brush Walls & Steps",icon:"🪣"},
@@ -664,7 +867,7 @@ function ServiceVisit({pool,filterEvery,twilio,currentUser,onComplete,onBack,onL
   );
 }
 
-function PoolDetail({pool,filterEvery,onBack,onStartVisit,onAddPhoto,onSendOnMyWay,sending,onEdit}){
+function PoolDetail({pool,filterEvery,onBack,onStartVisit,onAddPhoto,onSendOnMyWay,sending,onEdit,onViewReport}){
   const filterDue=pool.filterVisits>=filterEvery;
   return(
     <div style={{fontFamily:"sans-serif",background:"#060d1a",minHeight:"100vh",color:"#e2e8f0",paddingBottom:30}}>
@@ -768,6 +971,7 @@ function PoolDetail({pool,filterEvery,onBack,onStartVisit,onAddPhoto,onSendOnMyW
             </Card>
           );
         })()}
+        {onViewReport&&<button onClick={onViewReport} style={{width:"100%",background:"rgba(59,130,246,0.08)",border:"1px solid rgba(59,130,246,0.25)",borderRadius:13,padding:"13px",fontSize:14,fontWeight:700,color:"#60a5fa",cursor:"pointer",marginBottom:10}}>📋 View Full Service Report</button>}
         <button onClick={onSendOnMyWay} disabled={sending} style={{width:"100%",background:sending?"#1f2937":"linear-gradient(135deg,#f5a623,#e07b00)",border:"none",borderRadius:13,padding:"13px",fontSize:14,fontWeight:700,color:sending?"#6b7280":"#fff",cursor:"pointer",marginBottom:10}}>{sending?"⏳ Sending...":"🚗 Send On My Way Text"}</button>
         <button onClick={onStartVisit} style={{width:"100%",background:pool.status==="Completed"?"rgba(34,197,94,0.1)":"linear-gradient(135deg,#3b82f6,#06b6d4)",border:pool.status==="Completed"?"1px solid rgba(34,197,94,0.3)":"none",borderRadius:13,padding:"14px",fontSize:15,fontWeight:700,color:pool.status==="Completed"?"#22c55e":"#fff",cursor:"pointer"}}>{pool.status==="Completed"?"✓ Completed — Start New Visit":"▶ Start Service Visit"}</button>
       </div>
@@ -1086,6 +1290,7 @@ function DesertBloom(){
   const [ownerTab,setOwnerTab]=useState("overview");
   const [techTab,setTechTab]=useState("day");
   const [selPool,setSelPool]=useState(null);
+  const [showReport,setShowReport]=useState(null);
   const [visitPool,setVisitPool]=useState(null);
   const [addCustomer,setAddCustomer]=useState(null);
   const [showUsers,setShowUsers]=useState(false);
@@ -1193,7 +1398,8 @@ function DesertBloom(){
   if(visitPool) return <ServiceVisit pool={visitPool} filterEvery={filterEvery} twilio={twilio} currentUser={user} onComplete={u=>{upPool(u);setVisitPool(null);setSelPool(null);}} onBack={()=>setVisitPool(null)} onLogVisit={v=>DB.append("visits",v)}/>;
   if(addCustomer!==null) return <CustomerForm existing={addCustomer===true?null:addCustomer} users={users} onSave={pool=>{const updated=[...pools.filter(x=>x.id!==pool.id),pool];upPools(updated);}} onBack={()=>setAddCustomer(null)}/>;
   if(showUsers) return <UserManager users={users} onSave={u=>upUsers(u,user)} onBack={()=>setShowUsers(false)}/>;
-  if(selPool) return <PoolDetail pool={selPool} filterEvery={filterEvery} onBack={()=>setSelPool(null)} onStartVisit={()=>setVisitPool(selPool)} onAddPhoto={ph=>upPool({...selPool,photos:[...selPool.photos,ph]})} onSendOnMyWay={()=>doSend(selPool,"onmyway")} sending={!!sending[`${selPool.id}_onmyway`]} onEdit={()=>setAddCustomer(selPool)}/>;
+  if(showReport) return <ServiceHistoryReport pool={showReport} onBack={()=>setShowReport(null)}/>;
+  if(selPool) return <PoolDetail pool={selPool} filterEvery={filterEvery} onBack={()=>setSelPool(null)} onStartVisit={()=>setVisitPool(selPool)} onAddPhoto={ph=>upPool({...selPool,photos:[...selPool.photos,ph]})} onSendOnMyWay={()=>doSend(selPool,"onmyway")} sending={!!sending[`${selPool.id}_onmyway`]} onEdit={()=>setAddCustomer(selPool)} onViewReport={()=>setShowReport(selPool)}/>;
 
   const AppShell=({subtitle,nav,content})=>(
     <div style={{fontFamily:"sans-serif",background:"#060d1a",minHeight:"100vh",color:"#e2e8f0"}}>
@@ -1219,7 +1425,7 @@ function DesertBloom(){
       {id:"route",     label:"Route",     icon:"🗺️"},
       {id:"customers", label:"Customers", icon:"👤"},
       {id:"profit",    label:"Profit",    icon:"💰"},
-      {id:"volume",    label:"Volume",    icon:"🏊"},
+      {id:"lab",        label:"Lab",        icon:"🧪"},
       {id:"texts",     label:"Texts",     icon:"💬"},
       {id:"techs",     label:"Techs",     icon:"👷"},
       {id:"settings",  label:"Settings",  icon:"⚙️"},
@@ -1288,7 +1494,7 @@ function DesertBloom(){
         </div>
       ),
       profit:<ProfitTracker pools={pools} invoices={invoices} setInvoices={upInvoices} users={users}/>,
-      volume:<PoolVolumeCalc/>,
+      lab:<LabTab pools={pools}/>,
       texts:(
         <div style={{padding:"16px"}}>
           <div style={{fontSize:18,fontWeight:700,marginBottom:4}}>💬 Texting</div>
@@ -1382,7 +1588,7 @@ function DesertBloom(){
     {id:"day",     label:"My Day",    icon:"⬡"},
     {id:"route",   label:"Route",     icon:"🗺️"},
     {id:"customers",label:"Customers",icon:"👤"},
-    {id:"volume",  label:"Volume",    icon:"🏊"},
+    {id:"lab",     label:"Lab",       icon:"🧪"},
     {id:"done",    label:"Done",      icon:"✓"},
   ];
 
@@ -1437,7 +1643,7 @@ function DesertBloom(){
         {pools.map(p=>(<div key={p.id} onClick={()=>setSelPool(p)} style={{background:"#0d1626",borderRadius:13,padding:"13px 14px",marginBottom:8,border:"1px solid rgba(255,255,255,0.04)",cursor:"pointer",display:"flex",justifyContent:"space-between",alignItems:"center"}}><div><div style={{fontWeight:600,fontSize:14}}>{p.customer}</div><div style={{fontSize:11,color:"#6b7280"}}>{p.address.split(",")[0]} · {p.type}</div></div><Badge status={p.status}/></div>))}
       </div>
     ),
-    volume:<PoolVolumeCalc/>,
+    lab:<LabTab pools={pools}/>,
     done:(
       <div style={{padding:"16px"}}>
         <div style={{fontSize:18,fontWeight:700,marginBottom:4}}>Completed Today</div>
