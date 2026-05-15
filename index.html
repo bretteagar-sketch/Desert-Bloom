@@ -91,6 +91,39 @@ const DB = {
   async setConfig(key, value) { return this.post({sheet:"config", action:"set", payload:{key, value}}); },
 };
 
+// ── CLOUDINARY HELPERS ───────────────────────────────────────────────────────
+async function compressImage(file, maxPx=1400, quality=0.78) {
+  return new Promise(resolve => {
+    const img = new Image();
+    const url = URL.createObjectURL(file);
+    img.onload = () => {
+      let w = img.naturalWidth, h = img.naturalHeight;
+      if (w > maxPx || h > maxPx) {
+        if (w >= h) { h = Math.round(h * maxPx / w); w = maxPx; }
+        else        { w = Math.round(w * maxPx / h); h = maxPx; }
+      }
+      const canvas = document.createElement("canvas");
+      canvas.width = w; canvas.height = h;
+      canvas.getContext("2d").drawImage(img, 0, 0, w, h);
+      canvas.toBlob(blob => { URL.revokeObjectURL(url); resolve(blob || file); }, "image/jpeg", quality);
+    };
+    img.onerror = () => { URL.revokeObjectURL(url); resolve(file); };
+    img.src = url;
+  });
+}
+
+async function uploadToCloudinary(file, folder, cloudName, uploadPreset) {
+  const blob = await compressImage(file);
+  const fd   = new FormData();
+  fd.append("file",           blob);
+  fd.append("upload_preset",  uploadPreset);
+  fd.append("folder",         folder);
+  const res  = await fetch(`https://api.cloudinary.com/v1_1/${encodeURIComponent(cloudName)}/image/upload`, { method:"POST", body:fd });
+  const json = await res.json();
+  if (!res.ok) throw new Error(json.error?.message || "Upload failed");
+  return json.secure_url;
+}
+
 async function sendSMS(to, body, cfg) {
   const res = await fetch(`https://api.twilio.com/2010-04-01/Accounts/${cfg.sid}/Messages.json`, {
     method:"POST",
@@ -124,26 +157,63 @@ function Gauge({label,val,type,unit}){
   );
 }
 
-function Photos({photos,onAdd,label="Photos"}){
+function Photos({photos,onAdd,label="Photos",cloudinary=null,folder="desertbloom/general"}){
   const fRef=useRef(),cRef=useRef();
   const [big,setBig]=useState(null);
-  const handle=e=>{
-    Array.from(e.target.files).forEach(f=>{
-      const r=new FileReader();
-      r.onload=ev=>onAdd({src:ev.target.result,time:new Date().toLocaleTimeString()});
-      r.readAsDataURL(f);
-    });
+  const [uploading,setUploading]=useState([]);  // array of filenames being uploaded
+
+  const handle=async e=>{
+    const files=Array.from(e.target.files);
     e.target.value="";
+    const cldOk=cloudinary&&cloudinary.cloudName&&cloudinary.uploadPreset;
+    for(const f of files){
+      const time=new Date().toLocaleTimeString();
+      if(cldOk){
+        const uid=Math.random().toString(36).slice(2);
+        setUploading(v=>[...v,uid]);
+        try{
+          const url=await uploadToCloudinary(f,folder,cloudinary.cloudName,cloudinary.uploadPreset);
+          onAdd({src:url,time,cloudUrl:url});
+        }catch(err){
+          // fallback to base64 on upload error
+          const r=new FileReader();
+          r.onload=ev=>onAdd({src:ev.target.result,time,uploadError:true});
+          r.readAsDataURL(f);
+        }finally{
+          setUploading(v=>v.filter(x=>x!==uid));
+        }
+      } else {
+        const r=new FileReader();
+        r.onload=ev=>onAdd({src:ev.target.result,time});
+        r.readAsDataURL(f);
+      }
+    }
   };
+
+  const cloudEnabled=cloudinary&&cloudinary.cloudName&&cloudinary.uploadPreset;
+
   return(
     <>
       {big!==null&&<div onClick={()=>setBig(null)} style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.92)",zIndex:9999,display:"flex",alignItems:"center",justifyContent:"center"}}><img src={photos[big].src} alt="" style={{maxWidth:"95%",maxHeight:"85vh",borderRadius:12}}/><div style={{position:"absolute",top:16,right:16,color:"#fff",fontSize:28,cursor:"pointer"}}>✕</div></div>}
-      <div style={{fontSize:12,fontWeight:700,color:"#6b7280",marginBottom:8}}>{label} ({photos.length})</div>
+      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:8}}>
+        <div style={{fontSize:12,fontWeight:700,color:"#6b7280"}}>{label} ({photos.length})</div>
+        {cloudEnabled&&<span style={{fontSize:9,color:"#22c55e",background:"rgba(34,197,94,0.08)",border:"1px solid rgba(34,197,94,0.2)",borderRadius:20,padding:"2px 7px"}}>☁️ Cloud</span>}
+      </div>
       <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
         {photos.map((p,i)=>(
-          <div key={i} onClick={()=>setBig(i)} style={{width:70,height:70,borderRadius:10,overflow:"hidden",border:"1px solid rgba(255,255,255,0.1)",cursor:"pointer",position:"relative"}}>
+          <div key={i} onClick={()=>setBig(i)} style={{width:70,height:70,borderRadius:10,overflow:"hidden",border:`1px solid ${p.cloudUrl?"rgba(34,197,94,0.3)":p.uploadError?"rgba(239,68,68,0.3)":"rgba(255,255,255,0.1)"}`,cursor:"pointer",position:"relative"}}>
             <img src={p.src} alt="" style={{width:"100%",height:"100%",objectFit:"cover"}}/>
-            <div style={{position:"absolute",bottom:0,left:0,right:0,background:"rgba(0,0,0,0.6)",fontSize:8,color:"#fff",padding:"2px 4px"}}>{p.time}</div>
+            <div style={{position:"absolute",bottom:0,left:0,right:0,background:"rgba(0,0,0,0.6)",fontSize:8,color:"#fff",padding:"2px 4px",display:"flex",justifyContent:"space-between"}}>
+              <span>{p.time}</span>
+              {p.cloudUrl&&<span style={{color:"#22c55e"}}>☁️</span>}
+              {p.uploadError&&<span style={{color:"#ef4444"}}>⚠️</span>}
+            </div>
+          </div>
+        ))}
+        {uploading.map(uid=>(
+          <div key={uid} style={{width:70,height:70,borderRadius:10,border:"1px solid rgba(59,130,246,0.3)",background:"rgba(59,130,246,0.06)",display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",gap:4}}>
+            <div style={{width:20,height:20,border:"2px solid rgba(59,130,246,0.3)",borderTop:"2px solid #3b82f6",borderRadius:"50%",animation:"spin 1s linear infinite"}}/>
+            <span style={{fontSize:8,color:"#60a5fa"}}>Uploading</span>
           </div>
         ))}
         <button onClick={()=>cRef.current.click()} style={{width:70,height:70,borderRadius:10,border:"2px dashed rgba(34,197,94,0.5)",background:"rgba(34,197,94,0.05)",color:"#22c55e",fontSize:20,cursor:"pointer",display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",gap:2}}><span>📷</span><span style={{fontSize:9}}>Camera</span></button>
@@ -151,6 +221,7 @@ function Photos({photos,onAdd,label="Photos"}){
         <input ref={cRef} type="file" accept="image/*" capture="environment" onChange={handle} style={{display:"none"}}/>
         <input ref={fRef} type="file" accept="image/*" multiple onChange={handle} style={{display:"none"}}/>
       </div>
+      <style>{`@keyframes spin{to{transform:rotate(360deg)}}`}</style>
     </>
   );
 }
@@ -572,6 +643,24 @@ function ServiceHistoryReport({pool,onBack}){
                     )}
                     {(!v.chemicals||!v.chemicals.length)&&!v.chlorineTabs&&<div style={{fontSize:11,color:"#374151",fontStyle:"italic"}}>No chemicals logged this visit</div>}
                     {v.notes&&<div style={{marginTop:8,fontSize:12,color:"#9ca3af",fontStyle:"italic"}}>"{v.notes}"</div>}
+                    {((v.beforeUrls&&v.beforeUrls.length)||(v.afterUrls&&v.afterUrls.length))&&(
+                      <div style={{marginTop:10}}>
+                        <div style={{fontSize:10,fontWeight:700,color:"#374151",marginBottom:6,letterSpacing:0.5}}>PHOTOS</div>
+                        <div style={{display:"flex",gap:6,flexWrap:"wrap"}}>
+                          {(v.beforeUrls||[]).map((url,pi)=>(
+                            <a key={"b"+pi} href={url} target="_blank" rel="noreferrer" style={{display:"block",width:64,height:64,borderRadius:8,overflow:"hidden",border:"1px solid rgba(59,130,246,0.3)"}}>
+                              <img src={url} alt="before" style={{width:"100%",height:"100%",objectFit:"cover"}}/>
+                            </a>
+                          ))}
+                          {(v.afterUrls||[]).map((url,pi)=>(
+                            <a key={"a"+pi} href={url} target="_blank" rel="noreferrer" style={{display:"block",width:64,height:64,borderRadius:8,overflow:"hidden",border:"1px solid rgba(34,197,94,0.3)"}}>
+                              <img src={url} alt="after" style={{width:"100%",height:"100%",objectFit:"cover"}}/>
+                            </a>
+                          ))}
+                        </div>
+                        <div style={{fontSize:10,color:"#374151",marginTop:4}}>{(v.beforeUrls||[]).length} before · {(v.afterUrls||[]).length} after · stored in Cloudinary</div>
+                      </div>
+                    )}
                   </div>
                 );
               })}
@@ -620,7 +709,7 @@ const CHEM_OPTIONS={
   ],
 };
 
-function ServiceVisit({pool,filterEvery,twilio,currentUser,onComplete,onBack,onLogVisit}){
+function ServiceVisit({pool,filterEvery,twilio,cloudinary,currentUser,onComplete,onBack,onLogVisit}){
   const [step,setStep]=useState("start");
   const [elapsed,setElapsed]=useState(0);
   const [running,setRunning]=useState(false);
@@ -656,10 +745,12 @@ function ServiceVisit({pool,filterEvery,twilio,currentUser,onComplete,onBack,onL
     const cal=chem.calcium?parseFloat(chem.calcium):null;
     const _ds=(d)=>`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`;
     const _chemsLogged=Object.entries(chemAddedAmounts).filter(([,v])=>v).map(([key,amt])=>{const v2=parseFloat(chem[key])||pool[key]||0;const[lo,hi]=CR[key]||[0,0];const s=v2<lo?"low":v2>hi?"high":"ok";const opts=CHEM_OPTIONS[`${key}_${s}`]||[];const selId=selectedChems[key]||(opts[0]?.id||"");const sel=opts.find(o=>o.id===selId)||opts[0];return{chemical:sel?.label||key,amount:amt,unit:sel?.unit||""};});
-    const _hist={date:_ds(new Date()),completed:true,tech:currentUser.name,readings:{ph,chlorine:cl,alkalinity:alk,calcium:cal},chemicals:_chemsLogged,chlorineTabs,duration:elapsed,notes:chem.notes||""};
+    const _beforeUrls=beforePhotos.filter(p=>p.cloudUrl).map(p=>p.cloudUrl);
+    const _afterUrls=afterPhotos.filter(p=>p.cloudUrl).map(p=>p.cloudUrl);
+    const _hist={date:_ds(new Date()),completed:true,tech:currentUser.name,readings:{ph,chlorine:cl,alkalinity:alk,calcium:cal},chemicals:_chemsLogged,chlorineTabs,duration:elapsed,notes:chem.notes||"",beforeUrls:_beforeUrls,afterUrls:_afterUrls};
     const updated={...pool,ph:ph??pool.ph,chlorine:cl??pool.chlorine,alkalinity:alk??pool.alkalinity,calcium:cal??pool.calcium,notes:chem.notes||pool.notes,status:"Completed",lastService:todayStr(),photos:[...pool.photos,...beforePhotos],afterPhotos:[...afterPhotos],visits:pool.visits+1,filterVisits:filterDone?0:pool.filterVisits+1,lastDuration:elapsed,serviceHistory:[...(pool.serviceHistory||[]).filter(h=>h.date!==_hist.date),_hist]};
-    onLogVisit({poolId:pool.id,customer:pool.customer,tech:currentUser.name,duration:elapsed,ph,chlorine:cl,alkalinity:alk,calcium:cal,notes:chem.notes,filterCleaned:filterDone,beforePhotos:beforePhotos.length,afterPhotos:afterPhotos.length});
-    DB.append("serviceHistory",{poolId:pool.id,..._hist});
+    onLogVisit({poolId:pool.id,customer:pool.customer,tech:currentUser.name,duration:elapsed,ph,chlorine:cl,alkalinity:alk,calcium:cal,notes:chem.notes,filterCleaned:filterDone,beforePhotos:_beforeUrls.length||beforePhotos.length,afterPhotos:_afterUrls.length||afterPhotos.length});
+    DB.append("serviceHistory",{poolId:pool.id,..._hist,beforeUrls:_beforeUrls.join(","),afterUrls:_afterUrls.join(",")});
     if(twilio?.sid&&pool.phone){
       const chemLog=[
         {key:"ph",label:"pH",unit:""},
@@ -737,7 +828,7 @@ function ServiceVisit({pool,filterEvery,twilio,currentUser,onComplete,onBack,onL
           <>
             <div style={{fontSize:16,fontWeight:700,marginBottom:4}}>📷 Before Photos</div>
             <div style={{fontSize:13,color:"#6b7280",marginBottom:14}}>Capture pool condition before starting</div>
-            <Card style={{marginBottom:14}}><Photos photos={beforePhotos} onAdd={p=>setBeforePhotos(v=>[...v,p])} label="Before Photos"/></Card>
+            <Card style={{marginBottom:14}}><Photos photos={beforePhotos} onAdd={p=>setBeforePhotos(v=>[...v,p])} label="Before Photos" cloudinary={cloudinary} folder={`desertbloom/${pool.customer.replace(/\s+/g,"-").toLowerCase()}`}/></Card>
             <button onClick={()=>setStep("chemicals")} style={{width:"100%",background:"linear-gradient(135deg,#3b82f6,#06b6d4)",border:"none",borderRadius:14,padding:"14px",fontSize:15,fontWeight:700,color:"#fff",cursor:"pointer",marginBottom:8}}>Next: Chemicals →</button>
             <button onClick={()=>setStep("chemicals")} style={{width:"100%",background:"none",border:"none",color:"#6b7280",fontSize:13,cursor:"pointer"}}>Skip photos</button>
           </>
@@ -858,7 +949,7 @@ function ServiceVisit({pool,filterEvery,twilio,currentUser,onComplete,onBack,onL
           <>
             <div style={{fontSize:16,fontWeight:700,marginBottom:4}}>📷 After Photos</div>
             <div style={{fontSize:13,color:"#6b7280",marginBottom:14}}>Show the finished result</div>
-            <Card style={{marginBottom:14}}><Photos photos={afterPhotos} onAdd={p=>setAfterPhotos(v=>[...v,p])} label="After Photos"/></Card>
+            <Card style={{marginBottom:14}}><Photos photos={afterPhotos} onAdd={p=>setAfterPhotos(v=>[...v,p])} label="After Photos" cloudinary={cloudinary} folder={`desertbloom/${pool.customer.replace(/\s+/g,"-").toLowerCase()}`}/></Card>
             <button onClick={finish} disabled={finishing} style={{width:"100%",background:finishing?"#1f2937":"linear-gradient(135deg,#22c55e,#16a34a)",border:"none",borderRadius:14,padding:"15px",fontSize:15,fontWeight:700,color:finishing?"#6b7280":"#fff",cursor:finishing?"not-allowed":"pointer",marginBottom:8}}>{finishing?"⏳ Finishing...":"✓ Complete Visit"}</button>
             <button onClick={finish} disabled={finishing} style={{width:"100%",background:"none",border:"none",color:"#6b7280",fontSize:13,cursor:"pointer"}}>Skip after photos & finish</button>
           </>
@@ -1284,6 +1375,10 @@ function DesertBloom(){
   const [invoices,setInvoices]=useState(DEFAULT_INVOICES);
   const [filterEvery,setFilterEvery]=useState(FILTER_DEFAULT);
   const [twilio,setTwilio]=useState({sid:"",token:"",from:"+14805715896"});
+  const [cloudinary,setCloudinary]=useState({cloudName:"Desert Bloom",uploadPreset:"2c0a2353-e841-4dd5-bdcc-0d9154d1f4b9"});
+  const [cloudSaved,setCloudSaved]=useState(false);
+  const [cloudTesting,setCloudTesting]=useState(false);
+  const [cloudTestResult,setCloudTestResult]=useState(null);
   const [smsLog,setSmsLog]=useState([]);
   const [user,setUser]=useState(()=>lsGet("db_session",null));
   const [loginCreds,setLoginCreds]=useState({u:"",p:""});
@@ -1308,7 +1403,7 @@ function DesertBloom(){
   useEffect(()=>{
     DB.getAll().then(data=>{
       if(data){
-        if(data.config){const tw=data.config.find(r=>r.Key==="twilio");if(tw)try{setTwilio(JSON.parse(tw.Value));}catch{}const fe=data.config.find(r=>r.Key==="filterEvery");if(fe)try{setFilterEvery(JSON.parse(fe.Value));}catch{}}
+        if(data.config){const tw=data.config.find(r=>r.Key==="twilio");if(tw)try{setTwilio(JSON.parse(tw.Value));}catch{}const fe=data.config.find(r=>r.Key==="filterEvery");if(fe)try{setFilterEvery(JSON.parse(fe.Value));}catch{}const cld=data.config.find(r=>r.Key==="cloudinary");if(cld)try{setCloudinary(JSON.parse(cld.Value));}catch{}}
         if(data.pools&&data.pools.length){try{
           let p=data.pools.map(r=>r["JSON Data"]?JSON.parse(r["JSON Data"]):r).filter(r=>r&&r.customer).map(r=>{const def=DEFAULT_POOLS.find(d=>d.id===r.id);return{...(def||{}), ...r, serviceDay:r.serviceDay||def?.serviceDay||"Monday", scheduledTime:r.scheduledTime??def?.scheduledTime??420, serviceHistory:r.serviceHistory||[]};});
           if(data.serviceHistory&&data.serviceHistory.length){try{const sh=data.serviceHistory.map(r=>r["JSON Data"]?JSON.parse(r["JSON Data"]):r).filter(r=>r&&r.poolId&&r.date);if(sh.length){p=p.map(pool=>({...pool,serviceHistory:sh.filter(h=>String(h.poolId)===String(pool.id)).sort((a,b)=>b.date.localeCompare(a.date))}));}}catch{}}
@@ -1331,7 +1426,8 @@ function DesertBloom(){
     });
   },[twilio.sid,loading]);
 
-  const stripPhotos=(p)=>({...p,photos:[],afterPhotos:[]});
+  const isCloudUrl=ph=>ph&&ph.cloudUrl;
+  const stripPhotos=(p)=>({...p,photos:(p.photos||[]).filter(isCloudUrl),afterPhotos:(p.afterPhotos||[]).filter(isCloudUrl)});
   const sync=async(key,data)=>{ setSyncStatus("syncing");await DB.set(key,data);setSyncStatus("synced");setTimeout(()=>setSyncStatus(null),2000); };
   const upUsers=useCallback((u,currentUser)=>{ setUsers(u);const updatedSelf=u.find(x=>x.id===currentUser?.id);if(updatedSelf){setUser(updatedSelf);lsSet("db_session",updatedSelf);}sync("users",u); },[]);
   const upPools=useCallback(p=>{setPools(p);sync("pools",p.map(stripPhotos));},[]);
@@ -1401,7 +1497,7 @@ function DesertBloom(){
     </div>
   );
 
-  if(visitPool) return <ServiceVisit pool={visitPool} filterEvery={filterEvery} twilio={twilio} currentUser={user} onComplete={u=>{upPool(u);setVisitPool(null);setSelPool(null);}} onBack={()=>setVisitPool(null)} onLogVisit={v=>DB.append("visits",v)}/>;
+  if(visitPool) return <ServiceVisit pool={visitPool} filterEvery={filterEvery} twilio={twilio} cloudinary={cloudinary} currentUser={user} onComplete={u=>{upPool(u);setVisitPool(null);setSelPool(null);}} onBack={()=>setVisitPool(null)} onLogVisit={v=>DB.append("visits",v)}/>;
   if(addCustomer!==null) return <CustomerForm existing={addCustomer===true?null:addCustomer} users={users} onSave={pool=>{const updated=[...pools.filter(x=>x.id!==pool.id),pool];upPools(updated);}} onBack={()=>setAddCustomer(null)}/>;
   if(showUsers) return <UserManager users={users} onSave={u=>upUsers(u,user)} onBack={()=>setShowUsers(false)}/>;
   if(showReport) return <ServiceHistoryReport pool={showReport} onBack={()=>setShowReport(null)}/>;
@@ -1572,6 +1668,37 @@ function DesertBloom(){
             </div>
             <button onClick={()=>{lsSet("db_filterEvery",filterEvery);DB.setConfig("filterEvery",filterEvery);setFilterSaved(true);setTimeout(()=>setFilterSaved(false),2000);}} style={{width:"100%",background:"linear-gradient(135deg,#f5a623,#e07b00)",border:"none",borderRadius:12,padding:"12px",fontSize:14,fontWeight:700,color:"#fff",cursor:"pointer"}}>Save Schedule</button>
             {filterSaved&&<div style={{marginTop:10,background:"rgba(34,197,94,0.1)",border:"1px solid rgba(34,197,94,0.3)",borderRadius:10,padding:"10px",textAlign:"center",color:"#22c55e",fontWeight:700,fontSize:13}}>✓ Saved!</div>}
+          </Card>
+          <Card style={{marginBottom:14,border:"1px solid rgba(59,130,246,0.2)"}}>
+            <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:4}}>
+              <div style={{fontSize:13,fontWeight:700}}>☁️ Cloudinary Photos</div>
+              {cloudinary.cloudName&&cloudinary.uploadPreset&&<span style={{fontSize:10,color:"#22c55e",background:"rgba(34,197,94,0.08)",border:"1px solid rgba(34,197,94,0.2)",borderRadius:20,padding:"2px 8px"}}>✓ Configured</span>}
+            </div>
+            <div style={{fontSize:12,color:"#6b7280",marginBottom:12}}>Cloud photo storage — unlimited free uploads up to 25 GB</div>
+            <div style={{marginBottom:10}}>
+              <div style={{fontSize:11,color:"#6b7280",marginBottom:4,letterSpacing:1}}>CLOUD NAME</div>
+              <input type="text" value={cloudinary.cloudName} onChange={e=>setCloudinary(v=>({...v,cloudName:e.target.value}))} placeholder="e.g. desert-bloom" style={{width:"100%",background:"#111827",border:"1px solid rgba(255,255,255,0.08)",borderRadius:9,padding:"10px 13px",fontSize:13,color:"#e2e8f0",outline:"none",boxSizing:"border-box",fontFamily:"monospace"}}/>
+              <div style={{fontSize:10,color:"#374151",marginTop:3}}>Found in your Cloudinary dashboard → Account Details</div>
+            </div>
+            <div style={{marginBottom:12}}>
+              <div style={{fontSize:11,color:"#6b7280",marginBottom:4,letterSpacing:1}}>UPLOAD PRESET</div>
+              <input type="text" value={cloudinary.uploadPreset} onChange={e=>setCloudinary(v=>({...v,uploadPreset:e.target.value}))} placeholder="unsigned preset name or ID" style={{width:"100%",background:"#111827",border:"1px solid rgba(255,255,255,0.08)",borderRadius:9,padding:"10px 13px",fontSize:13,color:"#e2e8f0",outline:"none",boxSizing:"border-box",fontFamily:"monospace"}}/>
+              <div style={{fontSize:10,color:"#374151",marginTop:3}}>Settings → Upload → Upload presets (must be <b style={{color:"#f5a623"}}>Unsigned</b>)</div>
+            </div>
+            <button onClick={async()=>{await DB.setConfig("cloudinary",cloudinary);setCloudSaved(true);setTimeout(()=>setCloudSaved(false),3000);}} style={{width:"100%",background:"linear-gradient(135deg,#3b82f6,#06b6d4)",border:"none",borderRadius:12,padding:"12px",fontSize:14,fontWeight:700,color:"#fff",cursor:"pointer",marginBottom:8}}>Save to Google Sheets</button>
+            <button onClick={async()=>{
+              setCloudTesting(true);setCloudTestResult(null);
+              try{
+                const res=await fetch(`https://api.cloudinary.com/v1_1/${encodeURIComponent(cloudinary.cloudName)}/image/upload`,{method:"POST",body:(()=>{const fd=new FormData();fd.append("upload_preset",cloudinary.uploadPreset);fd.append("file","data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7");return fd;})()});
+                const json=await res.json();
+                if(res.ok)setCloudTestResult({ok:true,msg:"✓ Connected! Photos will upload to Cloudinary."});
+                else setCloudTestResult({ok:false,msg:`❌ ${json.error?.message||"Check cloud name & preset"}`});
+              }catch(e){setCloudTestResult({ok:false,msg:`❌ Network error — check cloud name`});}
+              setCloudTesting(false);
+            }} disabled={cloudTesting||!cloudinary.cloudName} style={{width:"100%",background:cloudTesting?"#1f2937":"rgba(255,255,255,0.05)",border:"1px solid rgba(255,255,255,0.1)",borderRadius:12,padding:"12px",fontSize:14,fontWeight:700,color:cloudTesting||!cloudinary.cloudName?"#374151":"#9ca3af",cursor:cloudinary.cloudName?"pointer":"not-allowed"}}>{cloudTesting?"⏳ Testing...":"🔌 Test Connection"}</button>
+            {cloudSaved&&<div style={{marginTop:10,background:"rgba(34,197,94,0.1)",border:"1px solid rgba(34,197,94,0.3)",borderRadius:10,padding:"10px",textAlign:"center",color:"#22c55e",fontWeight:700,fontSize:13}}>✓ Saved!</div>}
+            {cloudTestResult&&<div style={{marginTop:10,background:cloudTestResult.ok?"rgba(34,197,94,0.1)":"rgba(239,68,68,0.1)",border:`1px solid ${cloudTestResult.ok?"rgba(34,197,94,0.3)":"rgba(239,68,68,0.3)"}`,borderRadius:10,padding:"10px 12px",fontSize:13,color:cloudTestResult.ok?"#22c55e":"#f87171",fontWeight:600}}>{cloudTestResult.msg}</div>}
+            <div style={{marginTop:10,fontSize:11,color:"#374151",lineHeight:1.5}}>📁 Photos organized as: <span style={{color:"#60a5fa",fontFamily:"monospace"}}>desertbloom/customer-name/</span><br/>🔗 URLs saved permanently to Google Sheets</div>
           </Card>
           <Card style={{marginBottom:14}}>
             <div style={{fontSize:13,fontWeight:700,marginBottom:4}}>👥 User Management</div>
