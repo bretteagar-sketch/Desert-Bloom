@@ -658,7 +658,8 @@ function ServiceVisit({pool,filterEvery,twilio,currentUser,onComplete,onBack,onL
     const _chemsLogged=Object.entries(chemAddedAmounts).filter(([,v])=>v).map(([key,amt])=>{const v2=parseFloat(chem[key])||pool[key]||0;const[lo,hi]=CR[key]||[0,0];const s=v2<lo?"low":v2>hi?"high":"ok";const opts=CHEM_OPTIONS[`${key}_${s}`]||[];const selId=selectedChems[key]||(opts[0]?.id||"");const sel=opts.find(o=>o.id===selId)||opts[0];return{chemical:sel?.label||key,amount:amt,unit:sel?.unit||""};});
     const _hist={date:_ds(new Date()),completed:true,tech:currentUser.name,readings:{ph,chlorine:cl,alkalinity:alk,calcium:cal},chemicals:_chemsLogged,chlorineTabs,duration:elapsed,notes:chem.notes||""};
     const updated={...pool,ph:ph??pool.ph,chlorine:cl??pool.chlorine,alkalinity:alk??pool.alkalinity,calcium:cal??pool.calcium,notes:chem.notes||pool.notes,status:"Completed",lastService:todayStr(),photos:[...pool.photos,...beforePhotos],afterPhotos:[...afterPhotos],visits:pool.visits+1,filterVisits:filterDone?0:pool.filterVisits+1,lastDuration:elapsed,serviceHistory:[...(pool.serviceHistory||[]).filter(h=>h.date!==_hist.date),_hist]};
-    onLogVisit({customer:pool.customer,tech:currentUser.name,duration:elapsed,ph,chlorine:cl,alkalinity:alk,calcium:cal,notes:chem.notes,filterCleaned:filterDone,beforePhotos:beforePhotos.length,afterPhotos:afterPhotos.length});
+    onLogVisit({poolId:pool.id,customer:pool.customer,tech:currentUser.name,duration:elapsed,ph,chlorine:cl,alkalinity:alk,calcium:cal,notes:chem.notes,filterCleaned:filterDone,beforePhotos:beforePhotos.length,afterPhotos:afterPhotos.length});
+    DB.append("serviceHistory",{poolId:pool.id,..._hist});
     if(twilio?.sid&&pool.phone){
       const chemLog=[
         {key:"ph",label:"pH",unit:""},
@@ -1308,7 +1309,11 @@ function DesertBloom(){
     DB.getAll().then(data=>{
       if(data){
         if(data.config){const tw=data.config.find(r=>r.Key==="twilio");if(tw)try{setTwilio(JSON.parse(tw.Value));}catch{}const fe=data.config.find(r=>r.Key==="filterEvery");if(fe)try{setFilterEvery(JSON.parse(fe.Value));}catch{}}
-        if(data.pools&&data.pools.length){try{const p=data.pools.map(r=>r["JSON Data"]?JSON.parse(r["JSON Data"]):r).filter(r=>r&&r.customer).map(r=>{const def=DEFAULT_POOLS.find(d=>d.id===r.id);return{...(def||{}), ...r, serviceDay:r.serviceDay||def?.serviceDay||"Monday", scheduledTime:r.scheduledTime??def?.scheduledTime??420, serviceHistory:r.serviceHistory||[]};});if(p.length)setPools(p);}catch{}}
+        if(data.pools&&data.pools.length){try{
+          let p=data.pools.map(r=>r["JSON Data"]?JSON.parse(r["JSON Data"]):r).filter(r=>r&&r.customer).map(r=>{const def=DEFAULT_POOLS.find(d=>d.id===r.id);return{...(def||{}), ...r, serviceDay:r.serviceDay||def?.serviceDay||"Monday", scheduledTime:r.scheduledTime??def?.scheduledTime??420, serviceHistory:r.serviceHistory||[]};});
+          if(data.serviceHistory&&data.serviceHistory.length){try{const sh=data.serviceHistory.map(r=>r["JSON Data"]?JSON.parse(r["JSON Data"]):r).filter(r=>r&&r.poolId&&r.date);if(sh.length){p=p.map(pool=>({...pool,serviceHistory:sh.filter(h=>String(h.poolId)===String(pool.id)).sort((a,b)=>b.date.localeCompare(a.date))}));}}catch{}}
+          if(p.length)setPools(p);
+        }catch{}}
         if(data.users&&data.users.length){try{const u=data.users.map(r=>({id:r.ID,name:r.Name,role:r.Role,password:r.Password,phone:r.Phone})).filter(u=>u.id&&u.name);if(u.length)setUsers(u);}catch{}}
         if(data.invoices&&data.invoices.length){try{const inv=data.invoices.map(r=>({id:r.ID,customer:r.Customer,amount:parseFloat(r.Amount)||0,serviceDate:r["Service Date"],status:r.Status,paidDate:r["Paid Date"]||"",notes:r.Notes||""})).filter(i=>i.customer);if(inv.length)setInvoices(inv);}catch{}}
       }
@@ -1326,11 +1331,12 @@ function DesertBloom(){
     });
   },[twilio.sid,loading]);
 
+  const stripPhotos=(p)=>({...p,photos:[],afterPhotos:[]});
   const sync=async(key,data)=>{ setSyncStatus("syncing");await DB.set(key,data);setSyncStatus("synced");setTimeout(()=>setSyncStatus(null),2000); };
   const upUsers=useCallback((u,currentUser)=>{ setUsers(u);const updatedSelf=u.find(x=>x.id===currentUser?.id);if(updatedSelf){setUser(updatedSelf);lsSet("db_session",updatedSelf);}sync("users",u); },[]);
-  const upPools=useCallback(p=>{setPools(p);sync("pools",p);},[]);
+  const upPools=useCallback(p=>{setPools(p);sync("pools",p.map(stripPhotos));},[]);
   const upInvoices=useCallback(inv=>{setInvoices(inv);sync("invoices",inv);},[]);
-  const upPool=useCallback(u=>{setPools(p=>p.map(x=>x.id===u.id?u:x));setSelPool(u);sync("pools",pools.map(x=>x.id===u.id?u:x));},[pools]);
+  const upPool=useCallback(u=>{setPools(p=>p.map(x=>x.id===u.id?u:x));setSelPool(u);sync("pools",pools.map(x=>x.id===u.id?u:x).map(stripPhotos));},[pools]);
 
   const doSend=async(pool,type)=>{
     const key=`${pool.id}_${type}`;
