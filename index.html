@@ -751,7 +751,7 @@ function ServiceVisit({pool,filterEvery,twilio,cloudinary,currentUser,onComplete
     const updated={...pool,ph:ph??pool.ph,chlorine:cl??pool.chlorine,alkalinity:alk??pool.alkalinity,calcium:cal??pool.calcium,notes:chem.notes||pool.notes,status:"Completed",lastService:todayStr(),photos:[...pool.photos,...beforePhotos],afterPhotos:[...afterPhotos],visits:pool.visits+1,filterVisits:filterDone?0:pool.filterVisits+1,lastDuration:elapsed,serviceHistory:[...(pool.serviceHistory||[]).filter(h=>h.date!==_hist.date),_hist]};
     onLogVisit({poolId:pool.id,customer:pool.customer,tech:currentUser.name,duration:elapsed,ph,chlorine:cl,alkalinity:alk,calcium:cal,notes:chem.notes,filterCleaned:filterDone,beforePhotos:_beforeUrls.length||beforePhotos.length,afterPhotos:_afterUrls.length||afterPhotos.length});
     DB.append("serviceHistory",{poolId:pool.id,date:_hist.date,tech:_hist.tech,duration:_hist.duration,notes:_hist.notes,chlorineTabs:_hist.chlorineTabs,ph:_hist.readings?.ph,chlorine:_hist.readings?.chlorine,alkalinity:_hist.readings?.alkalinity,calcium:_hist.readings?.calcium,chemicals:JSON.stringify(_hist.chemicals||[]),beforeUrls:_beforeUrls.join("|"),afterUrls:_afterUrls.join("|"),"JSON Data":JSON.stringify({..._hist,poolId:pool.id,beforeUrls:_beforeUrls,afterUrls:_afterUrls})});
-    if(twilio?.sid&&pool.phone){
+    if(twilio?.sid&&pool.phone&&pool.smsEnabled!==false){
       const chemLog=[
         {key:"ph",label:"pH",unit:""},
         {key:"chlorine",label:"Chlorine",unit:" ppm"},
@@ -959,7 +959,7 @@ function ServiceVisit({pool,filterEvery,twilio,cloudinary,currentUser,onComplete
   );
 }
 
-function PoolDetail({pool,filterEvery,onBack,onStartVisit,onAddPhoto,onSendOnMyWay,sending,onEdit,onViewReport}){
+function PoolDetail({pool,filterEvery,onBack,onStartVisit,onAddPhoto,onSendOnMyWay,sending,onEdit,onViewReport,onToggleSms}){
   const filterDue=pool.filterVisits>=filterEvery;
   return(
     <div style={{fontFamily:"sans-serif",background:"#060d1a",minHeight:"100vh",color:"#e2e8f0",paddingBottom:30}}>
@@ -1064,7 +1064,14 @@ function PoolDetail({pool,filterEvery,onBack,onStartVisit,onAddPhoto,onSendOnMyW
           );
         })()}
         {onViewReport&&<button onClick={onViewReport} style={{width:"100%",background:"rgba(59,130,246,0.08)",border:"1px solid rgba(59,130,246,0.25)",borderRadius:13,padding:"13px",fontSize:14,fontWeight:700,color:"#60a5fa",cursor:"pointer",marginBottom:10}}>📋 View Full Service Report</button>}
-        <button onClick={onSendOnMyWay} disabled={sending} style={{width:"100%",background:sending?"#1f2937":"linear-gradient(135deg,#f5a623,#e07b00)",border:"none",borderRadius:13,padding:"13px",fontSize:14,fontWeight:700,color:sending?"#6b7280":"#fff",cursor:"pointer",marginBottom:10}}>{sending?"⏳ Sending...":"🚗 Send On My Way Text"}</button>
+        <Card style={{marginBottom:10,display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+          <div>
+            <div style={{fontSize:13,fontWeight:700,marginBottom:2}}>💬 SMS Notifications</div>
+            <div style={{fontSize:11,color:"#6b7280"}}>{pool.smsEnabled===false?"Off — no texts will be sent":"On — On My Way & service reports"}</div>
+          </div>
+          <button onClick={()=>onToggleSms&&onToggleSms(pool.smsEnabled===false)} style={{background:pool.smsEnabled===false?"#1f2937":"rgba(34,197,94,0.15)",border:`1px solid ${pool.smsEnabled===false?"rgba(255,255,255,0.08)":"rgba(34,197,94,0.4)"}`,borderRadius:20,padding:"6px 16px",fontSize:12,fontWeight:700,color:pool.smsEnabled===false?"#6b7280":"#22c55e",cursor:"pointer",whiteSpace:"nowrap"}}>{pool.smsEnabled===false?"OFF":"ON"}</button>
+        </Card>
+        <button onClick={onSendOnMyWay} disabled={sending||pool.smsEnabled===false} style={{width:"100%",background:sending||pool.smsEnabled===false?"#1f2937":"linear-gradient(135deg,#f5a623,#e07b00)",border:"none",borderRadius:13,padding:"13px",fontSize:14,fontWeight:700,color:sending||pool.smsEnabled===false?"#6b7280":"#fff",cursor:pool.smsEnabled===false?"not-allowed":"pointer",marginBottom:10}}>{sending?"⏳ Sending...":pool.smsEnabled===false?"💬 Texts Off":"🚗 Send On My Way Text"}</button>
         <button onClick={onStartVisit} style={{width:"100%",background:pool.status==="Completed"?"rgba(34,197,94,0.1)":"linear-gradient(135deg,#3b82f6,#06b6d4)",border:pool.status==="Completed"?"1px solid rgba(34,197,94,0.3)":"none",borderRadius:13,padding:"14px",fontSize:15,fontWeight:700,color:pool.status==="Completed"?"#22c55e":"#fff",cursor:"pointer"}}>{pool.status==="Completed"?"✓ Completed — Start New Visit":"▶ Start Service Visit"}</button>
       </div>
     </div>
@@ -1073,7 +1080,7 @@ function PoolDetail({pool,filterEvery,onBack,onStartVisit,onAddPhoto,onSendOnMyW
 
 function CustomerForm({existing,users,onSave,onBack}){
   const techs=users.filter(u=>u.role==="tech");
-  const blank={customer:"",phone:"",address:"",type:"Residential",size:"",tech:techs[0]?.id||"",notes:"",equipment:"",salt:false,monthlyRate:"",serviceDay:"Monday"};
+  const blank={customer:"",phone:"",address:"",type:"Residential",size:"",tech:techs[0]?.id||"",notes:"",equipment:"",salt:false,monthlyRate:"",serviceDay:"Monday",smsEnabled:true};
   const [f,setF]=useState(existing?{...existing,equipment:(existing.equipment||[]).join(", "),salt:!!existing.salt,monthlyRate:existing.monthlyRate||""}:blank);
   const [err,setErr]=useState({});
   const [done,setDone]=useState(false);
@@ -1084,7 +1091,7 @@ function CustomerForm({existing,users,onSave,onBack}){
     if(!f.address.trim()) e.address="Required";
     if(!f.phone.trim()) e.phone="Required";
     setErr(e);if(Object.keys(e).length) return;
-    const pool={id:existing?.id||Date.now(),customer:f.customer.trim(),phone:f.phone.trim().startsWith("+")?f.phone.trim():"+1"+f.phone.trim().replace(/\D/g,""),address:f.address.trim(),lat:33.5,lng:-111.9,type:f.type,size:f.size||"Unknown",status:existing?.status||"Scheduled",lastService:existing?.lastService||"Never",tech:f.tech,ph:existing?.ph||7.4,chlorine:existing?.chlorine||2.0,alkalinity:existing?.alkalinity||100,calcium:existing?.calcium||250,salt:f.salt?(existing?.salt||3200):null,notes:f.notes.trim(),equipment:f.equipment.split(",").map(e=>e.trim()).filter(Boolean),photos:existing?.photos||[],afterPhotos:existing?.afterPhotos||[],order:existing?.order||999,visits:existing?.visits||0,filterVisits:existing?.filterVisits||0,monthlyRate:parseFloat(f.monthlyRate)||0,serviceDay:f.serviceDay,scheduledTime:existing?.scheduledTime??420,serviceHistory:existing?.serviceHistory||[]};
+    const pool={id:existing?.id||Date.now(),customer:f.customer.trim(),phone:f.phone.trim().startsWith("+")?f.phone.trim():"+1"+f.phone.trim().replace(/\D/g,""),address:f.address.trim(),lat:33.5,lng:-111.9,type:f.type,size:f.size||"Unknown",status:existing?.status||"Scheduled",lastService:existing?.lastService||"Never",tech:f.tech,ph:existing?.ph||7.4,chlorine:existing?.chlorine||2.0,alkalinity:existing?.alkalinity||100,calcium:existing?.calcium||250,salt:f.salt?(existing?.salt||3200):null,notes:f.notes.trim(),equipment:f.equipment.split(",").map(e=>e.trim()).filter(Boolean),photos:existing?.photos||[],afterPhotos:existing?.afterPhotos||[],order:existing?.order||999,visits:existing?.visits||0,filterVisits:existing?.filterVisits||0,monthlyRate:parseFloat(f.monthlyRate)||0,serviceDay:f.serviceDay,scheduledTime:existing?.scheduledTime??420,serviceHistory:existing?.serviceHistory||[],smsEnabled:f.smsEnabled!==false};
     onSave(pool);setDone(true);setTimeout(()=>{setDone(false);onBack();},1500);
   };
   return(
@@ -1436,6 +1443,7 @@ function DesertBloom(){
 
   const doSend=async(pool,type)=>{
     const key=`${pool.id}_${type}`;
+    if(pool.smsEnabled===false){alert("💬 SMS is turned off for this customer.");return;}
     if(!twilio.sid||!twilio.token){alert("⚠️ Set up Twilio in Settings first");return;}
     const first=pool.customer.split(" ")[0];
     const body=type==="onmyway"?`Hi ${first}! Your Desert Bloom pool tech is on the way! 🌵 Thanks!`:`Hi ${first}! Reminder: your Desert Bloom pool service is coming up soon. 🌵 — Desert Bloom`;
@@ -1501,7 +1509,7 @@ function DesertBloom(){
   if(addCustomer!==null) return <CustomerForm existing={addCustomer===true?null:addCustomer} users={users} onSave={pool=>{const updated=[...pools.filter(x=>x.id!==pool.id),pool];upPools(updated);}} onBack={()=>setAddCustomer(null)}/>;
   if(showUsers) return <UserManager users={users} onSave={u=>upUsers(u,user)} onBack={()=>setShowUsers(false)}/>;
   if(showReport) return <ServiceHistoryReport pool={showReport} onBack={()=>setShowReport(null)}/>;
-  if(selPool) return <PoolDetail pool={selPool} filterEvery={filterEvery} onBack={()=>setSelPool(null)} onStartVisit={()=>setVisitPool(selPool)} onAddPhoto={ph=>upPool({...selPool,photos:[...selPool.photos,ph]})} onSendOnMyWay={()=>doSend(selPool,"onmyway")} sending={!!sending[`${selPool.id}_onmyway`]} onEdit={()=>setAddCustomer(selPool)} onViewReport={()=>setShowReport(selPool)}/>;
+  if(selPool) return <PoolDetail pool={selPool} filterEvery={filterEvery} onBack={()=>setSelPool(null)} onStartVisit={()=>setVisitPool(selPool)} onAddPhoto={ph=>upPool({...selPool,photos:[...selPool.photos,ph]})} onSendOnMyWay={()=>doSend(selPool,"onmyway")} sending={!!sending[`${selPool.id}_onmyway`]} onEdit={()=>setAddCustomer(selPool)} onViewReport={()=>setShowReport(selPool)} onToggleSms={enabled=>upPool({...selPool,smsEnabled:enabled})}/>;
 
   const AppShell=({subtitle,nav,content})=>(
     <div style={{fontFamily:"sans-serif",background:"#060d1a",minHeight:"100vh",color:"#e2e8f0"}}>
