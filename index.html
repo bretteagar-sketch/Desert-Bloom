@@ -693,12 +693,12 @@ const CHECKLIST=[
 
 const CHEM_OPTIONS={
   ph_low:[
-    {id:"soda_ash",    label:"Soda Ash (Sodium Carbonate)",      unit:"lbs",  formula:(d,g)=>+(d/0.2*0.75*(g/10000)).toFixed(2)},
-    {id:"baking_soda_ph",label:"Baking Soda (mild pH raise)",   unit:"lbs",  formula:(d,g)=>+(d/0.1*1.5*(g/10000)).toFixed(2)},
+    {id:"soda_ash",       label:"Soda Ash (Sodium Carbonate)",      unit:"lbs",  formula:(d,g)=>+(d/0.2*1.0*(g/10000)).toFixed(2)},
+    {id:"baking_soda_ph", label:"Baking Soda (mild pH raise)",      unit:"lbs",  formula:(d,g)=>+(d/0.1*1.5*(g/10000)).toFixed(2)},
   ],
   ph_high:[
-    {id:"muriatic",    label:"Muriatic Acid (31.45%)",           unit:"qts",  formula:(d,g)=>+(d/0.2*10.64/32*(g/10000)).toFixed(2)},
-    {id:"dry_acid",    label:"Dry Acid (Sodium Bisulfate)",      unit:"lbs",  formula:(d,g)=>+(d/0.2*0.5*(g/10000)).toFixed(2)},
+    {id:"muriatic",    label:"Muriatic Acid (31.45%)",           unit:"qts",  formula:(d,g)=>+(d*1.0*(g/10000)).toFixed(2)},
+    {id:"dry_acid",    label:"Dry Acid (Sodium Bisulfate)",      unit:"lbs",  formula:(d,g)=>+(d/0.2*1.0*(g/10000)).toFixed(2)},
   ],
   chlorine_low:[
     {id:"liquid_cl",   label:"Liquid Chlorine (10–12%)",         unit:"gal",  formula:(d,g)=>+(d*(1/3)*(g/10000)).toFixed(2)},
@@ -706,13 +706,13 @@ const CHEM_OPTIONS={
     {id:"shock",       label:"Pool Shock (1 lb bags)",           unit:"lbs",  formula:(d,g)=>+(d*0.2*(g/10000)).toFixed(2)},
   ],
   alkalinity_low:[
-    {id:"baking_soda", label:"Baking Soda (Sodium Bicarbonate)", unit:"lbs",  formula:(d,g)=>+(d/10*1.4*(g/10000)).toFixed(2)},
+    {id:"baking_soda", label:"Baking Soda (Sodium Bicarbonate)", unit:"lbs",  formula:(d,g)=>+(d/10*1.5*(g/10000)).toFixed(2)},
   ],
   alkalinity_high:[
     {id:"muriatic_alk",label:"Muriatic Acid (31.45%)",           unit:"qts",  formula:(d,g)=>+(d/10*0.8*(g/10000)).toFixed(2)},
   ],
   calcium_low:[
-    {id:"cal_chloride",label:"Calcium Chloride (77%)",           unit:"lbs",  formula:(d,g)=>+(d/10*1.2*(g/10000)).toFixed(2)},
+    {id:"cal_chloride",label:"Calcium Chloride (77%)",           unit:"lbs",  formula:(d,g)=>+(d/10*1.25*(g/10000)).toFixed(2)},
   ],
   salt_low:[
     {id:"pool_salt",   label:"Pool Salt (NaCl)",                 unit:"lbs",  formula:(d,g)=>+(d/500*50*(g/10000)).toFixed(0)},
