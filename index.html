@@ -691,9 +691,9 @@ const CHEM_OPTIONS={
     {id:"dry_acid",    label:"Dry Acid (Sodium Bisulfate)",      unit:"lbs",  formula:(d,g)=>+(d/0.2*0.5*(g/10000)).toFixed(2)},
   ],
   chlorine_low:[
-    {id:"liquid_cl",   label:"Liquid Chlorine (10–12%)",         unit:"qts",  formula:(d,g)=>+(d*13/32*(g/10000)).toFixed(2)},
-    {id:"cal_hypo",    label:"Cal-Hypo 68% (granular)",          unit:"lbs",  formula:(d,g)=>+(d/5*(g/10000)).toFixed(2)},
-    {id:"shock",       label:"Pool Shock (1 lb bags)",           unit:"lbs",  formula:(d,g)=>+(d/5*(g/10000)).toFixed(2)},
+    {id:"liquid_cl",   label:"Liquid Chlorine (10–12%)",         unit:"gal",  formula:(d,g)=>+(d*(1/3)*(g/10000)).toFixed(2)},
+    {id:"cal_hypo",    label:"Cal-Hypo 68% (granular)",          unit:"lbs",  formula:(d,g)=>+(d*0.21*(g/10000)).toFixed(2)},
+    {id:"shock",       label:"Pool Shock (1 lb bags)",           unit:"lbs",  formula:(d,g)=>+(d*0.2*(g/10000)).toFixed(2)},
   ],
   alkalinity_low:[
     {id:"baking_soda", label:"Baking Soda (Sodium Bicarbonate)", unit:"lbs",  formula:(d,g)=>+(d/10*1.4*(g/10000)).toFixed(2)},
