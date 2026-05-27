@@ -60,6 +60,16 @@ const CR = { ph:[7.2,7.6], chlorine:[3.0,5.0], alkalinity:[80,120], calcium:[200
 const cStat = (v,t)=>{ const r=CR[t]; if(!r)return"ok"; if(v<r[0])return"low"; if(v>r[1])return"high"; return"ok"; };
 const openMaps = (a)=>window.open(`https://maps.google.com/?q=${encodeURIComponent(a)}`,"_blank");
 const fmtTime = (s)=>`${String(Math.floor(s/60)).padStart(2,"0")}:${String(s%60).padStart(2,"0")}`;
+const fmtDose = (raw, unit) => {
+  if(!raw||raw<=0) return `0 ${unit}`;
+  const rounded = Math.ceil(raw * 4) / 4;
+  const whole = Math.floor(rounded);
+  const frac = Math.round((rounded - whole) * 4);
+  const fracStr = frac===0?"": frac===1?"¼": frac===2?"½":"¾";
+  const numStr = whole===0 ? fracStr : `${whole}${fracStr}`;
+  const u = unit==="lbs"?(rounded===1?"lb":"lbs"): unit==="gal"?(rounded===1?"gal":"gals"): unit==="qts"?(rounded===1?"qt":"qts"):unit;
+  return `${numStr} ${u}`;
+};
 const todayStr = ()=>new Date().toLocaleDateString("en-US",{month:"short",day:"numeric"});
 const fmtMoney = (n)=>`$${Number(n||0).toLocaleString("en-US",{minimumFractionDigits:0})}`;
 const parseGallons=(s)=>{const m=(s||"").replace(/,/g,"").match(/[\d.]+/);return m?parseFloat(m[0]):10000;};
@@ -530,8 +540,8 @@ function ChemDoseCalc({pools=[]}){
                 <div style={{background:"rgba(59,130,246,0.08)",border:"1px solid rgba(59,130,246,0.15)",borderRadius:10,padding:"12px 14px",display:"flex",justifyContent:"space-between",alignItems:"center"}}>
                   <div>
                     <div style={{fontSize:11,color:"#6b7280",marginBottom:2}}>RECOMMENDED DOSE</div>
-                    <div style={{fontSize:30,fontWeight:800,color:"#60a5fa",lineHeight:1}}>{dose}</div>
-                    <div style={{fontSize:12,color:"#94a3b8"}}>{sopt?.unit} of {sopt?.label}</div>
+                    <div style={{fontSize:30,fontWeight:800,color:"#60a5fa",lineHeight:1}}>{fmtDose(dose,sopt?.unit||"")}</div>
+                    <div style={{fontSize:12,color:"#94a3b8"}}>of {sopt?.label}</div>
                   </div>
                   <div style={{fontSize:10,color:"#374151",textAlign:"right"}}>Based on<br/>{gal.toLocaleString()} gal</div>
                 </div>
@@ -893,8 +903,8 @@ function ServiceVisit({pool,filterEvery,twilio,cloudinary,currentUser,onComplete
                         <div style={{background:"rgba(59,130,246,0.08)",border:"1px solid rgba(59,130,246,0.15)",borderRadius:10,padding:"12px 14px",marginBottom:10,display:"flex",justifyContent:"space-between",alignItems:"center"}}>
                           <div>
                             <div style={{fontSize:11,color:"#6b7280",marginBottom:2}}>RECOMMENDED DOSE</div>
-                            <div style={{fontSize:26,fontWeight:800,color:"#60a5fa",lineHeight:1}}>{dose}</div>
-                            <div style={{fontSize:12,color:"#94a3b8"}}>{selOpt?.unit} of {selOpt?.label}</div>
+                            <div style={{fontSize:26,fontWeight:800,color:"#60a5fa",lineHeight:1}}>{fmtDose(dose,selOpt?.unit||"")}</div>
+                            <div style={{fontSize:12,color:"#94a3b8"}}>of {selOpt?.label}</div>
                           </div>
                           <div style={{fontSize:10,color:"#374151",textAlign:"right"}}>Based on<br/>{pool.size}</div>
                         </div>
